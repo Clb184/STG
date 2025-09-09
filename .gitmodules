@@ -1,0 +1,3 @@
+[submodule "deps/XPFW"]
+	path = deps/XPFW
+	url = https://github.com/Clb184/XPFW
