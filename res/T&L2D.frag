@@ -6,7 +6,7 @@ out vec4 COLOR;
 in vec4 color;
 in vec2 tex_coords;
 
-uniform sampler2D g_Sampler;
+layout(binding = 0) uniform sampler2D g_Sampler;
 
 void main() {
 	COLOR = texture(g_Sampler, tex_coords) * color;
