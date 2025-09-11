@@ -1,0 +1,16 @@
+#ifndef ENEMY_INCLUDED
+#define ENEMY_INCLUDED
+
+#include "Sprite.hpp"
+
+typedef struct {
+	int life;
+	float x;
+	float y;
+	float time;
+	float dir;
+
+	sprite_t sprite;
+} enemy_t;
+
+#endif

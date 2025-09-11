@@ -3,15 +3,9 @@
 #include <DirectXMath.h>
 
 #include "XPFW.h"
-
-#define RAD(x) (x * 180.0 / 3.14159)
-
-typedef struct {
-	float u0;
-	float u1;
-	float v0;
-	float v1;
-} quad_t;
+#include "Sprite.hpp"
+#include "Enemy.hpp"
+#include "Common.hpp"
 
 typedef struct {
 	FT_Library library;
@@ -22,40 +16,9 @@ typedef struct {
 	GLuint volume;
 	GLuint meiling_tex, meiling_vb, meiling_va;
 	float var;
-	quad_t quad;
+
+	sprite_t meiling_sprt;
 } GameData;
-
-void RotateQuad(TLVertex2D* vertex, float angle, float w, float h, float x, float y) {
-	float s, c;
-	float hw = 0.5 * w, hh = 0.5 * h;
-	DirectX::XMScalarSinCos(&s, &c, angle);
-	vertex[0].x = c * -hw - s * -hh + x;
-	vertex[0].y = s * -hw + c * -hh + y;
-
-	vertex[1].x = c * -hw - s * hh + x;
-	vertex[1].y = s * -hw + c * hh + y;
-
-	vertex[2].x = c * hw - s * -hh + x;
-	vertex[2].y = s * hw + c * -hh + y;
-
-	vertex[3].x = c * hw - s * hh + x;
-	vertex[3].y = s * hw + c * hh + y;
-}
-
-void SetQuadUV(TLVertex2D* vertex, quad_t* quad, uint32_t color) {
-	vertex[0].u = quad->u0;
-	vertex[0].v = quad->v0;
-	vertex[0].color = color;
-	vertex[1].u = quad->u0;
-	vertex[1].v = quad->v1;
-	vertex[1].color = color;
-	vertex[2].u = quad->u1;
-	vertex[2].v = quad->v0;
-	vertex[2].color = color;
-	vertex[3].u = quad->u1;
-	vertex[3].v = quad->v1;
-	vertex[3].color = color;
-}
 
 void Initialize(GameData* game_data) {
 	GLuint vs, ps, pf;
@@ -70,7 +33,7 @@ void Initialize(GameData* game_data) {
 	CreateTL2DVertexBuffer(4, nullptr, GL_DYNAMIC_DRAW, &game_data->meiling_vb, &game_data->meiling_va);
 	game_data->var = 0.0f;
 
-	game_data->quad = { 0.0f, 0.25f, 0.0f, 0.25f };
+	game_data->meiling_sprt = { game_data->meiling_tex, 64.0f, 64.0f, 0.0f, 1.0f, 0.0f, 0.25f, 0.0f, 0.25f, 0xffffffff };
 
 	InitializeFreeType(&game_data->library);
 	game_data->font = new font_t;
@@ -80,7 +43,7 @@ void Initialize(GameData* game_data) {
 }
 
 LOOP_FN(GameMain) {
-	const float logic_step = 1.0 / 60.0f;
+	const float logic_step = 1.0f / 60.0f;
 	GameData* game_data = (GameData*)data;
 	glUseProgram(game_data->flat);
 	glBindTextureUnit(0, game_data->meiling_tex);
@@ -90,33 +53,22 @@ LOOP_FN(GameMain) {
 	glUniformMatrix4fv(0, 1, GL_FALSE, (GLfloat*)&proj);
 
 	TLVertex2D* vertex = (TLVertex2D*)glMapNamedBuffer(game_data->meiling_vb, GL_WRITE_ONLY);
-	RotateQuad(vertex, 0, 64.0f, 64.0f, 320.0f, 240.0f + DirectX::XMScalarSin(game_data->var * 2.0f) * 30.0f);
-	SetQuadUV(vertex, &game_data->quad, 0xffffffff);
 	
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_1)) {
-		game_data->quad.u0 = 0.0f;
-		game_data->quad.u1 = 0.25f;
-		game_data->quad.v0 = 0.0f;
-		game_data->quad.v1 = 0.25f;
+		SetUV(&game_data->meiling_sprt.uv, 0.0f, 0.25f, 0.0f, 0.25f);
 	}
 	else if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_2)) {
-		game_data->quad.u0 = 0.25f;
-		game_data->quad.u1 = 0.50f;
-		game_data->quad.v0 = 0.0f;
-		game_data->quad.v1 = 0.25f;
+		SetUV(&game_data->meiling_sprt.uv, 0.25f, 0.5f, 0.0f, 0.25f);
 	}
 	else if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_3)) {
-		game_data->quad.u0 = 0.50f;
-		game_data->quad.u1 = 0.75f;
-		game_data->quad.v0 = 0.0f;
-		game_data->quad.v1 = 0.25f;
+		SetUV(&game_data->meiling_sprt.uv, 0.5f, 0.75f, 0.0f, 0.25f);
 	}
 	else if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_4)) {
-		game_data->quad.u0 = 0.75f;
-		game_data->quad.u1 = 1.00f;
-		game_data->quad.v0 = 0.0f;
-		game_data->quad.v1 = 0.25f;
+		SetUV(&game_data->meiling_sprt.uv, 0.75f, 1.00f, 0.0f, 0.25f);
 	}
+
+	float y = 240.0f + DirectX::XMScalarSin(game_data->var * 2.0f) * 30.0f;
+	SetupSprite(vertex, 320.0f, y, &game_data->meiling_sprt);
 
 	glUnmapNamedBuffer(game_data->meiling_vb);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -131,6 +83,8 @@ LOOP_FN(GameMain) {
 	char buf[64] = "";
 	sprintf(buf, "Delta = %.4f", game_data->past_time);
 	DrawString(game_data->font, 0, 0, buf, 0xffffffff);
+	sprintf(buf, "y = %.4f", y);
+	DrawString(game_data->font, 0, 24, buf, 0xffffffff);
 }
 
 int main() {
