@@ -4,6 +4,7 @@
 
 void InitMove(move_t* move) {
 	memset(move, 0, sizeof(move_t));
+	move->type = -1;
 }
 
 void SetMove(move_t* move, float ix, float iy, float fx, float fy, float time, int type) {
@@ -17,12 +18,14 @@ void SetMove(move_t* move, float ix, float iy, float fx, float fy, float time, i
 	move->type = type;
 }
 
-void TickMove(move_t* move, float value) {
+void TickMove(move_t* move, float value, float* x, float* y) {
+	if (-1 == move->type) return;
 	float time = move->time, val = 0.0f;
 	move->current += value;
 	val = move->current;
 	if (val >= time) {
 		val = time;
+		move->type = -1;
 	}
 	float t = val * move->d_time;
 	
@@ -42,4 +45,6 @@ void TickMove(move_t* move, float value) {
 
 	move->x = Lerp(t, move->ix, move->fx);
 	move->y = Lerp(t, move->iy, move->fy);
+	*x = move->x;
+	*y = move->y;
 }

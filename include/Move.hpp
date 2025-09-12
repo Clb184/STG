@@ -13,6 +13,6 @@ void InitMove(move_t* move);
 
 void SetMove(move_t* move, float ix, float iy, float fx, float fy, float time, int type);
 
-void TickMove(move_t* move, float value);
+void TickMove(move_t* move, float value, float* x, float* y);
 
 #endif

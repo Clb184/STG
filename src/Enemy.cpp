@@ -7,4 +7,5 @@ void InitEnemy(enemy_t* enemy, int hp, float x, float y, float dir) {
 	enemy->dir = dir;
 	enemy->time = 0.0f;
 	enemy->sprite = { 0 };
+	InitMove(&enemy->move);
 }

@@ -2,6 +2,7 @@
 #define ENEMY_INCLUDED
 
 #include "Sprite.hpp"
+#include "Move.hpp"
 
 typedef struct {
 	int life;
@@ -9,7 +10,7 @@ typedef struct {
 	float y;
 	float time;
 	float dir;
-
+	move_t move;
 	sprite_t sprite;
 } enemy_t;
 
