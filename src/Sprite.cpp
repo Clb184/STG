@@ -1,5 +1,15 @@
 #include "Sprite.hpp"
 
+void InitSprite(sprite_t* sprite) {
+	sprite->texture = 0;
+	sprite->width = 32.0f;
+	sprite->height = 32.0f;
+	sprite->dirs = 0.0f;
+	sprite->dirc = 1.0f;
+	sprite->uv = { 0 };
+	sprite->color = 0xffffffff;
+}
+
 void SetupSprite(TLVertex2D* vertex, float x, float y, sprite_t* sprite) {
 	float hw = 0.5f * sprite->width, hh = 0.5f * sprite->height;
 	float s = sprite->dirs, c = sprite->dirc;

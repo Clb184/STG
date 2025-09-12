@@ -22,6 +22,8 @@ typedef struct {
 	uint32_t color;
 } sprite_t;
 
+void InitSprite(sprite_t* sprite);
+
 void SetupSprite(TLVertex2D* vertex, float x, float y, sprite_t* sprite);
 
 void SetUV(quad_t* quad, float u0, float u1, float v0, float v1);

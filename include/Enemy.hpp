@@ -13,4 +13,6 @@ typedef struct {
 	sprite_t sprite;
 } enemy_t;
 
+void InitEnemy(enemy_t* enemy, int hp, float x, float y, float dir);
+
 #endif
