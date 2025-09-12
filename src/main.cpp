@@ -46,21 +46,36 @@ void Initialize(GameData* game_data) {
 
 void Move(window_t* window, float delta_time, void* data) {
 	GameData* game_data = (GameData*)data;
-
+	enemy_t* meiling = &game_data->meiling;
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_1)) {
-		SetUV(&game_data->meiling.sprite.uv, 0.0f, 0.25f, 0.0f, 0.25f);
+		SetUV(&meiling->sprite.uv, 0.0f, 0.25f, 0.0f, 0.25f);
 	}
 	else if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_2)) {
-		SetUV(&game_data->meiling.sprite.uv, 0.25f, 0.5f, 0.0f, 0.25f);
+		SetUV(&meiling->sprite.uv, 0.25f, 0.5f, 0.0f, 0.25f);
 	}
 	else if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_3)) {
-		SetUV(&game_data->meiling.sprite.uv, 0.5f, 0.75f, 0.0f, 0.25f);
+		SetUV(&meiling->sprite.uv, 0.5f, 0.75f, 0.0f, 0.25f);
 	}
 	else if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_4)) {
-		SetUV(&game_data->meiling.sprite.uv, 0.75f, 1.00f, 0.0f, 0.25f);
+		SetUV(&meiling->sprite.uv, 0.75f, 1.00f, 0.0f, 0.25f);
 	}
+
+	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_Q)) {
+		SetMove(&meiling->move, meiling->x, meiling->y, 220.0f, 100.0f, 5.0f, 7);
+	}
+	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_W)) {
+		SetMove(&meiling->move, meiling->x, meiling->y, 420.0f, 350.0f, 0.75f, 7);
+	}
+	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_E)) {
+		SetMove(&meiling->move, meiling->x, meiling->y, 30.0f, 410.0f, 1.0f, 7);
+	}
+	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_S)) {
+		SetMove(&meiling->move, meiling->x, meiling->y, 320.0f, 240.0f, 2.0f, 7);
+	}
+
+	TickMove(&meiling->move, delta_time, &meiling->x, &meiling->y);
 	// Do stuff
-	game_data->meiling.y = 240.0f + DirectX::XMScalarSin(game_data->var * 2.0f) * 30.0f;
+	//game_data->meiling.y = 240.0f + DirectX::XMScalarSin(game_data->var * 2.0f) * 30.0f;
 	game_data->var += delta_time;
 	game_data->all_time += delta_time;
 }
