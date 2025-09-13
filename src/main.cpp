@@ -72,6 +72,9 @@ void Move(window_t* window, float delta_time, void* data) {
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_S)) {
 		SetMove(&meiling->move, meiling->x, meiling->y, 320.0f, 240.0f, 2.0f, 7);
 	}
+	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_D)) {
+		SetMoveDir(&meiling->move, meiling->x, meiling->y, RAD(90.0f), 0.0f, 200.0f, 0.0f, 1.0f, 1);
+	}
 
 	TickMove(&meiling->move, delta_time, &meiling->x, &meiling->y);
 	// Do stuff
@@ -103,8 +106,17 @@ void Draw(window_t* window, float delta_time, void* data) {
 	DrawString(game_data->font, 0, 0, buf, 0xffffffff);
 	sprintf(buf, "Time passed: %.2f s", game_data->all_time);
 	DrawString(game_data->font, 0, 24, buf, 0xffffffff);
-	sprintf(buf, "Y = %.4f", game_data->meiling.y);
+	sprintf(buf, "X = %.3f", game_data->meiling.x);
 	DrawString(game_data->font, 0, 48, buf, 0xffffffff);
+	sprintf(buf, "Y = %.3f", game_data->meiling.y);
+	DrawString(game_data->font, 0, 72, buf, 0xffffffff);
+
+	sprintf(buf, "Dir = %.3f", atan2f(game_data->meiling.move.sdir, game_data->meiling.move.cdir));
+	DrawString(game_data->font, 0, 288, buf, 0xffffffff);
+	sprintf(buf, "DirC / FinalX = %.3f",game_data->meiling.move.cdir);
+	DrawString(game_data->font, 0, 312, buf, 0xffffffff);
+	sprintf(buf, "DirS / FinalY = %.3f", game_data->meiling.move.sdir);
+	DrawString(game_data->font, 0, 336, buf, 0xffffffff);
 }
 
 LOOP_FN(GameMain) {

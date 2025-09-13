@@ -1,7 +1,7 @@
 #ifndef COMMON_INCLUDED
 #define COMMON_INCLUDED
 
-#define RAD(x) (x * 180.0 / 3.14159)
+#define RAD(x) (x * 3.14159f / 180.0f)
 
 constexpr inline float Lerp(float t, float a, float b) {
 	return (1 - t) * a + t * b;
