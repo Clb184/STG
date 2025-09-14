@@ -22,14 +22,12 @@ void SetMove(move_t* move, float ix, float iy, float fx, float fy, float time, i
 void SetMoveDir(move_t* move, float ix, float iy, float dir, float speed, float accel, float rol, float time, int type) {
 	move->ix = ix;
 	move->iy = iy;
-	if (type == 2) {
-		move->sdir = dir;
+	DirectX::XMScalarSinCos(&move->sdir, &move->cdir, dir);
+	switch (type) {
+	case 2: move->sdir = dir; break;
 	}
-	else {
-		DirectX::XMScalarSinCos(&move->sdir, &move->cdir, dir);
-	}
-	move->speed = speed;
 	move->accel = accel;
+	move->speed = speed;
 	move->rol = dir + rol;
 	move->current = 0.0f;
 	move->time = time;
@@ -74,17 +72,18 @@ void TickMove(move_t* move, float value, float* x, float* y) {
 	goto end;
 move_dir:
 	switch (move->type - 0x100) {
-	case 0:
+	case 0: // Move at constant speed
 		*x = Lerp(t, move->ix, move->ix + move->time * move->speed * move->cdir);
 		*y = Lerp(t, move->iy, move->iy + move->time * move->speed * move->sdir);
 		break;
-	case 1:
-		move->ix += (Lerp(t, 0.0f ,move->time * move->accel) + move->speed) * value * move->cdir;
-		move->iy += (Lerp(t, 0.0f ,move->time * move->accel) + move->speed) * value * move->sdir;
-		*x = move->ix;
-		*y = move->iy;
+	case 1: // Move with acceleration
+	{
+		float factor = move->speed * val + 0.5 * move->accel * val * val;
+		*x = move->ix + factor * move->cdir;
+		*y = move->iy + factor * move->sdir;
+	}
 		break;
-	case 2:
+	case 2: //
 	{
 		float s, c;
 		DirectX::XMScalarSinCos(&s, &c, Lerp(t, move->sdir, move->rol));

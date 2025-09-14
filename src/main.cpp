@@ -33,7 +33,7 @@ void Initialize(GameData* game_data) {
 	LoadTextureFromFile("boss10.png", &game_data->meiling_tex, nullptr);
 	CreateTL2DVertexBuffer(4, nullptr, GL_DYNAMIC_DRAW, &game_data->meiling_vb, &game_data->meiling_va);
 	game_data->var = 0.0f;
-	InitEnemy(&game_data->meiling, 100, 320.0f, 240.0f, 0.0f);
+	InitEnemy(&game_data->meiling, 100, 320.0f, 0.0f, 0.0f);
 	game_data->meiling.sprite = { game_data->meiling_tex, 64.0f, 64.0f, 0.0f, 1.0f, 0.0f, 0.25f, 0.0f, 0.25f, 0xffffffff };
 
 	InitializeFreeType(&game_data->library);
@@ -61,7 +61,7 @@ void Move(window_t* window, float delta_time, void* data) {
 	}
 
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_Q)) {
-		SetMove(&meiling->move, meiling->x, meiling->y, 220.0f, 100.0f, 5.0f, 7);
+		SetMove(&meiling->move, meiling->x, meiling->y, 220.0f, 100.0f, 1.2f, 7);
 	}
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_W)) {
 		SetMove(&meiling->move, meiling->x, meiling->y, 420.0f, 350.0f, 0.75f, 7);
@@ -70,10 +70,10 @@ void Move(window_t* window, float delta_time, void* data) {
 		SetMove(&meiling->move, meiling->x, meiling->y, 30.0f, 410.0f, 1.0f, 7);
 	}
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_S)) {
-		SetMove(&meiling->move, meiling->x, meiling->y, 320.0f, 240.0f, 2.0f, 7);
+		SetMove(&meiling->move, meiling->x, meiling->y, 320.0f, 0.0f, 2.0f, 7);
 	}
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_D)) {
-		SetMoveDir(&meiling->move, meiling->x, meiling->y, RAD(90.0f), 0.0f, 200.0f, 0.0f, 1.0f, 1);
+		SetMoveDir(&meiling->move, meiling->x, meiling->y, RAD(90.0f), 20.0f, 50.0f, 0.0f, 2.0f, 1);
 	}
 
 	TickMove(&meiling->move, delta_time, &meiling->x, &meiling->y);
@@ -117,6 +117,8 @@ void Draw(window_t* window, float delta_time, void* data) {
 	DrawString(game_data->font, 0, 312, buf, 0xffffffff);
 	sprintf(buf, "DirS / FinalY = %.3f", game_data->meiling.move.sdir);
 	DrawString(game_data->font, 0, 336, buf, 0xffffffff);
+	sprintf(buf, "Speed = %.3f", game_data->meiling.move.speed);
+	DrawString(game_data->font, 0, 360, buf, 0xffffffff);
 }
 
 LOOP_FN(GameMain) {
