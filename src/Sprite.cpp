@@ -1,9 +1,12 @@
 #include "Sprite.hpp"
+#include <DirectXMath.h>
 
 void InitSprite(sprite_t* sprite) {
 	sprite->texture = 0;
 	sprite->width = 32.0f;
 	sprite->height = 32.0f;
+	sprite->scale_x = 1.0f;
+	sprite->scale_y = 1.0f;
 	sprite->dirs = 0.0f;
 	sprite->dirc = 1.0f;
 	sprite->uv = { 0 };
@@ -11,7 +14,7 @@ void InitSprite(sprite_t* sprite) {
 }
 
 void SetupSprite(TLVertex2D* vertex, float x, float y, sprite_t* sprite) {
-	float hw = 0.5f * sprite->width, hh = 0.5f * sprite->height;
+	float hw = 0.5f * sprite->width * sprite->scale_x, hh = 0.5f * sprite->height * sprite->scale_y;
 	float s = sprite->dirs, c = sprite->dirc;
 
 	vertex[0].x = c * -hw - s * -hh + x;
@@ -44,4 +47,18 @@ void SetUV(quad_t* quad, float u0, float u1, float v0, float v1) {
 	quad->u1 = u1;
 	quad->v0 = v0;
 	quad->v1 = v1;
+}
+
+void SetSize(sprite_t* sprite, float width, float height) {
+	sprite->width = width;
+	sprite->height = height;
+}
+
+void SetScale(sprite_t* sprite, float scale_x, float scale_y) {
+	sprite->scale_x = scale_x;
+	sprite->scale_y = scale_y;
+}
+
+void SetDirection(sprite_t* sprite, float angle) {
+	DirectX::XMScalarSinCos(&sprite->dirs, &sprite->dirc, angle);
 }
