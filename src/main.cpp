@@ -7,6 +7,7 @@
 #include "Enemy.hpp"
 #include "Face.hpp"
 #include "Common.hpp"
+#include "FaceManager.hpp"
 
 typedef struct {
 	FT_Library library;
@@ -17,11 +18,11 @@ typedef struct {
 	GLuint flat;
 	GLuint volume;
 	GLuint meiling_tex, meiling_vb, meiling_va;
-	GLuint meiling_face_tex, meiling_face_vb, meiling_face_va;
+	GLuint facea, faceb;
 	float var;
 
 	enemy_t meiling;
-	face_t face;
+	face_manager_t face_manager;
 } GameData;
 
 void Initialize(GameData* game_data) {
@@ -40,17 +41,33 @@ void Initialize(GameData* game_data) {
 	game_data->var = 0.0f;
 	InitEnemy(&game_data->meiling, 100, 320.0f, 240.0f, 0.0f, game_data->meiling_tex);
 	SetSize(&game_data->meiling.sprite, 64.0f, 64.0f);
-	SetDirection(&game_data->meiling.sprite, RAD(45.0f));
+	SetDirection(&game_data->meiling.sprite, RAD(0.0f));
 	SetUV(&game_data->meiling.sprite.uv, 0.0f, 0.25f, 0.0f, 0.25f);
 
 	// Test face
-	LoadTextureFromFile("face06a.png", &game_data->meiling_face_tex, nullptr);
-	CreateTL2DVertexBuffer(4, nullptr, GL_DYNAMIC_DRAW, &game_data->meiling_face_vb, &game_data->meiling_face_va);
+	LoadTextureFromFile("face06a.png", &game_data->facea, nullptr);
+	LoadTextureFromFile("face06b.png", &game_data->faceb, nullptr);
 	game_data->var = 0.0f;
-	InitFace(&game_data->face, 640.0f - 64.0f, 480.0f - 128.0f, 0.0f, game_data->meiling_face_tex);
-	SetSize(&game_data->face.sprite, 128.0f, 256.0f);
-	SetDirection(&game_data->face.sprite, RAD(0.0f));
-	SetUV(&game_data->face.sprite.uv, 0.0f, 0.5f, 0.0f, 1.0f);
+	InitFaceManager(&game_data->face_manager);
+	face_t* face = AddFace(&game_data->face_manager, 160.0f, 480.0f - 128.0f, 0.0f, game_data->facea);
+	SetSize(&face->sprite, 128.0f, 256.0f);
+	SetDirection(&face->sprite, RAD(0.0f));
+	SetUV(&face->sprite.uv, 0.0f, 0.5f, 0.0f, 1.0f);
+
+	face = AddFace(&game_data->face_manager, 160.0f + 128.0f, 480.0f - 128.0f, 0.0f, game_data->facea);
+	SetSize(&face->sprite, 128.0f, 256.0f);
+	SetDirection(&face->sprite, RAD(0.0f));
+	SetUV(&face->sprite.uv, 0.5f, 1.0f, 0.0f, 1.0f);
+
+	face = AddFace(&game_data->face_manager, 160.0f + 256.0f, 480.0f - 128.0f, 0.0f, game_data->faceb);
+	SetSize(&face->sprite, 128.0f, 256.0f);
+	SetDirection(&face->sprite, RAD(0.0f));
+	SetUV(&face->sprite.uv, 0.0f, 0.5f, 0.0f, 1.0f);
+
+	face = AddFace(&game_data->face_manager, 160.0f + 384.0f, 480.0f - 128.0f, 0.0f, game_data->faceb);
+	SetSize(&face->sprite, 128.0f, 256.0f);
+	SetDirection(&face->sprite, RAD(0.0f));
+	SetUV(&face->sprite.uv, 0.5f, 1.0f, 0.0f, 1.0f);
 
 	// Initialize font render
 	InitializeFreeType(&game_data->library);
@@ -122,6 +139,7 @@ void Draw(window_t* window, float delta_time, void* data) {
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 	// Face
+	/*
 	vertex = (TLVertex2D*)glMapNamedBuffer(game_data->meiling_face_vb, GL_WRITE_ONLY);
 
 	SetupSprite(vertex, game_data->face.x, game_data->face.y, &game_data->face.sprite);
@@ -129,7 +147,9 @@ void Draw(window_t* window, float delta_time, void* data) {
 
 	glBindTextureUnit(0, game_data->face.sprite.texture);
 	glBindVertexArray(game_data->meiling_face_va);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);*/
+
+	DrawFaces(&game_data->face_manager);
 
 	// Text
 	sprintf(buf, "%.2f fps", window->fps);
