@@ -176,11 +176,16 @@ LOOP_FN(GameMain) {
 	Draw(window, delta_time, data);
 }
 
+void Destroy(GameData* game_data) {
+	DestroyFaceManager(&game_data->face_manager);
+}
+
 int main() {
 	window_t window = { 0 };
 	GameData data;
 	CreateGLWindow("STG game", 800, 600, false, &window);
 	Initialize(&data);
 	RunMainLoop(&window, &data, GameMain);
+	Destroy(&data);
 	DestroyGLWindow(&window);
 }

@@ -8,6 +8,11 @@ void InitSingleList(list_t* list, int max) {
 	list->head = list->tail = list->nodes;
 }
 
+void DestroySingleList(list_t* list) {
+	free(list->nodes);
+	memset(list, 0, sizeof(list_t));
+}
+
 void SLPushItem(list_t* list, void* data) {
 	if (list->count >= list->max) return;
 	node_t new_node = { 0 };

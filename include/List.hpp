@@ -21,6 +21,8 @@ typedef struct {
 
 void InitSingleList(list_t* list, int max);
 
+void DestroySingleList(list_t* list);
+
 void SLPushItem(list_t* list, void* data);
 
 void SLPopItem(list_t* list);

@@ -18,7 +18,7 @@ typedef struct {
 
 void InitFaceManager(face_manager_t* face_manager);
 
-void DestroyFaceManager(face_manager_t* face_manager)
+void DestroyFaceManager(face_manager_t* face_manager);
 
 face_t* AddFace(face_manager_t* face_manager, float x, float y, float angle, GLuint texture);
 
