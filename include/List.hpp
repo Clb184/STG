@@ -16,6 +16,7 @@ typedef struct {
 	struct node_t* tail;
 	struct node_t* nodes;
 	int count;
+	int search_next;
 	int max;
 } list_t;
 
@@ -26,6 +27,8 @@ void DestroySingleList(list_t* list);
 void SLPushItem(list_t* list, void* data);
 
 void SLPopItem(list_t* list);
+
+void SLRemoveItemAt(list_t* list, int pos);
 
 void SLReset(list_t* list);
 
