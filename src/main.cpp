@@ -23,6 +23,11 @@ typedef struct {
 
 	enemy_t meiling;
 	face_manager_t face_manager;
+
+	float lowest_fps;
+	float highest_fps;
+
+	float tick_spd;
 } GameData;
 
 void Initialize(GameData* game_data) {
@@ -78,11 +83,19 @@ void Initialize(GameData* game_data) {
 	// Other data
 	game_data->past_time = 0.0f;
 	game_data->all_time = 0.0f;
+
+	game_data->lowest_fps = 1000.0f;
+	game_data->highest_fps = -1000.0f;
+
+	game_data->tick_spd = 1.0f;
 }
 
-void Move(window_t* window, float delta_time, void* data) {
+void Move(window_t* window,  void* data) {
+	float delta_time = window->delta_time;
 	GameData* game_data = (GameData*)data;
 	enemy_t* meiling = &game_data->meiling;
+	float tick = game_data->tick_spd;
+
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_1)) {
 		SetUV(&meiling->sprite.uv, 0.0f, 0.25f, 0.0f, 0.25f);
 	}
@@ -97,29 +110,29 @@ void Move(window_t* window, float delta_time, void* data) {
 	}
 
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_Q)) {
-		SetMove(&meiling->move, meiling->x, meiling->y, 220.0f, 100.0f, 1.2f, 7);
+		SetMove(&meiling->move, meiling->x, meiling->y, 220.0f, 100.0f, 80, 7);
 	}
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_W)) {
-		SetMove(&meiling->move, meiling->x, meiling->y, 420.0f, 350.0f, 0.75f, 7);
+		SetMove(&meiling->move, meiling->x, meiling->y, 420.0f, 350.0f, 40, 7);
 	}
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_E)) {
-		SetMove(&meiling->move, meiling->x, meiling->y, 30.0f, 410.0f, 1.0f, 7);
+		SetMove(&meiling->move, meiling->x, meiling->y, 30.0f, 410.0f, 60, 7);
 	}
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_S)) {
-		SetMove(&meiling->move, meiling->x, meiling->y, 320.0f, 0.0f, 2.0f, 7);
+		SetMove(&meiling->move, meiling->x, meiling->y, 320.0f, 0.0f, 120, 7);
 	}
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_D)) {
-		SetMoveDir(&meiling->move, meiling->x, meiling->y, RAD(90.0f), 300.0f, -300.0f, 0.0f, 1.0f, 1);
+		SetMoveDir(&meiling->move, meiling->x, meiling->y, RAD(90.0f), 300.0f, -300.0f, 0.0f, 60, 1);
 	}
 
-	TickMove(&meiling->move, delta_time, &meiling->x, &meiling->y);
+	TickMove(&meiling->move, tick, &meiling->x, &meiling->y);
 	// Do stuff
 	//game_data->meiling.y = 240.0f + DirectX::XMScalarSin(game_data->var * 2.0f) * 30.0f;
 	game_data->var += delta_time;
 	game_data->all_time += delta_time;
 }
 
-void Draw(window_t* window, float delta_time, void* data) {
+void Draw(window_t* window, void* data) {
 	GameData* game_data = (GameData*)data;
 	char buf[64] = "";
 
@@ -139,20 +152,13 @@ void Draw(window_t* window, float delta_time, void* data) {
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 	// Face
-	/*
-	vertex = (TLVertex2D*)glMapNamedBuffer(game_data->meiling_face_vb, GL_WRITE_ONLY);
-
-	SetupSprite(vertex, game_data->face.x, game_data->face.y, &game_data->face.sprite);
-	glUnmapNamedBuffer(game_data->meiling_face_vb);
-
-	glBindTextureUnit(0, game_data->face.sprite.texture);
-	glBindVertexArray(game_data->meiling_face_va);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);*/
-
-	DrawFaces(&game_data->face_manager);
+	//DrawFaces(&game_data->face_manager);
 
 	// Text
-	sprintf(buf, "%.2f fps", window->fps);
+	float fps = GetWindowFPS(window);
+	if (fps > game_data->lowest_fps) game_data->lowest_fps = fps;
+	else if (fps < game_data->lowest_fps && fps != INFINITY) game_data->highest_fps = fps;
+	sprintf(buf, "%.2f fps", fps);
 	DrawString(game_data->font, 0, 0, buf, 0xffffffff);
 	sprintf(buf, "Time passed: %.2f s", game_data->all_time);
 	DrawString(game_data->font, 0, 24, buf, 0xffffffff);
@@ -171,21 +177,25 @@ void Draw(window_t* window, float delta_time, void* data) {
 	DrawString(game_data->font, 0, 360, buf, 0xffffffff);
 }
 
-LOOP_FN(GameMain) {
-	Move(window, delta_time, data);
-	Draw(window, delta_time, data);
-}
-
 void Destroy(GameData* game_data) {
 	DestroyFaceManager(&game_data->face_manager);
 }
 
+#ifdef WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#endif
+
 int main() {
 	window_t window = { 0 };
 	GameData data;
-	CreateGLWindow("STG game", 800, 600, false, &window);
+	CreateGLWindow("STG game", 640, 480, false, &window);
 	Initialize(&data);
-	RunMainLoop(&window, &data, GameMain);
+	RunMainLoop(&window, &data, Move, Draw);
 	Destroy(&data);
-	DestroyGLWindow(&window);
+#ifdef WIN32
+	char buf[512];
+	sprintf(buf, "Highest FPS: %.2f\n Lowest FPS: %.2f",data.highest_fps, data.lowest_fps);
+	//MessageBox(NULL, buf, " ", MB_OK);
+#endif
 }
