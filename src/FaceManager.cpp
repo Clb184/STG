@@ -26,7 +26,6 @@ face_t* AddFace(face_manager_t* face_manager, float x, float y, float angle, GLu
 
 void DrawFaces(face_manager_t* face_manager) {
 	TLVertex2D* vertex = (TLVertex2D*)glMapNamedBuffer(face_manager->vertex_buffer, GL_WRITE_ONLY);
-	node_t* node = face_manager->face_list.head;
 	int cnt = face_manager->count;
 	for (int i = 0; i < cnt; i++) {
 		face_t* face = face_manager->draw_list[i];
