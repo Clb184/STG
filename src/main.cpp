@@ -152,7 +152,7 @@ void Draw(window_t* window, void* data) {
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 	// Face
-	//DrawFaces(&game_data->face_manager);
+	DrawFaces(&game_data->face_manager);
 
 	// Text
 	float fps = GetWindowFPS(window);

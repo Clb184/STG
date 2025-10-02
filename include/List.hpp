@@ -16,7 +16,7 @@ typedef struct {
 	struct node_t* tail;
 	struct node_t* nodes;
 	int count;
-	int search_next;
+	int last_search;
 	int max;
 } list_t;
 
