@@ -7,9 +7,8 @@
 const int MAX_FACES = 16;
 
 typedef struct {
-	face_t faces[MAX_FACES];
-	list_t face_list;
-	list_t draw_list;
+	list_t<face_t, MAX_FACES> face_list;
+	GLuint tex_list[MAX_FACES];
 	int count;
 	int num_draw;
 	GLuint vertex_buffer;
