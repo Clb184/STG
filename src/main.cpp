@@ -8,6 +8,7 @@
 #include "Face.hpp"
 #include "Common.hpp"
 #include "FaceManager.hpp"
+#include "EnemyManager.hpp"
 
 typedef struct {
 	FT_Library library;
@@ -21,8 +22,8 @@ typedef struct {
 	GLuint facea, faceb;
 	float var;
 
-	enemy_t meiling;
 	face_manager_t face_manager;
+	enemy_manager_t enm_manager;
 
 	float lowest_fps;
 	float highest_fps;
@@ -44,10 +45,6 @@ void Initialize(GameData* game_data) {
 	LoadTextureFromFile("boss10.png", &game_data->meiling_tex, nullptr);
 	CreateTL2DVertexBuffer(4, nullptr, GL_DYNAMIC_DRAW, &game_data->meiling_vb, &game_data->meiling_va);
 	game_data->var = 0.0f;
-	InitEnemy(&game_data->meiling, 100, 320.0f, 240.0f, 0.0f, game_data->meiling_tex);
-	SetSize(&game_data->meiling.sprite, 64.0f, 64.0f);
-	SetDirection(&game_data->meiling.sprite, RAD(0.0f));
-	SetUV(&game_data->meiling.sprite.uv, 0.0f, 0.25f, 0.0f, 0.25f);
 
 	// Test face
 	LoadTextureFromFile("face06a.png", &game_data->facea, nullptr);
@@ -74,6 +71,14 @@ void Initialize(GameData* game_data) {
 	SetDirection(&face->sprite, RAD(0.0f));
 	SetUV(&face->sprite.uv, 0.5f, 1.0f, 0.0f, 1.0f);
 
+	// Enemy manager
+	InitEnemyManager(&game_data->enm_manager);
+
+	enemy_t* meiling =  AddEnemy(&game_data->enm_manager, 100, 320.0f, 240.0f, 0.0f, game_data->meiling_tex);
+	SetSize(&meiling->sprite, 64.0f, 64.0f);
+	SetDirection(&meiling->sprite, RAD(0.0f));
+	SetUV(&meiling->sprite.uv, 0.0f, 0.25f, 0.0f, 0.25f);
+
 	// Initialize font render
 	InitializeFreeType(&game_data->library);
 	game_data->font = new font_t;
@@ -93,7 +98,7 @@ void Initialize(GameData* game_data) {
 void Move(window_t* window,  void* data) {
 	float delta_time = window->delta_time;
 	GameData* game_data = (GameData*)data;
-	enemy_t* meiling = &game_data->meiling;
+	enemy_t* meiling = &game_data->enm_manager.enemy_list.nodes[0].data;
 	float tick = game_data->tick_spd;
 
 	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_1)) {
@@ -144,12 +149,7 @@ void Draw(window_t* window, void* data) {
 	TLVertex2D* vertex = (TLVertex2D*)glMapNamedBuffer(game_data->meiling_vb, GL_WRITE_ONLY);
 
 	// Enemy
-	SetupSprite(vertex, game_data->meiling.x, game_data->meiling.y, &game_data->meiling.sprite);
-	glUnmapNamedBuffer(game_data->meiling_vb);
-
-	glBindTextureUnit(0, game_data->meiling.sprite.texture);
-	glBindVertexArray(game_data->meiling_va);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	DrawEnemies(&game_data->enm_manager);
 
 	// Face
 	DrawFaces(&game_data->face_manager);
@@ -162,6 +162,7 @@ void Draw(window_t* window, void* data) {
 	DrawString(game_data->font, 0, 0, buf, 0xffffffff);
 	sprintf(buf, "Time passed: %.2f s", game_data->all_time);
 	DrawString(game_data->font, 0, 24, buf, 0xffffffff);
+	/*
 	sprintf(buf, "X = %.3f", game_data->meiling.x);
 	DrawString(game_data->font, 0, 48, buf, 0xffffffff);
 	sprintf(buf, "Y = %.3f", game_data->meiling.y);
@@ -175,10 +176,12 @@ void Draw(window_t* window, void* data) {
 	DrawString(game_data->font, 0, 336, buf, 0xffffffff);
 	sprintf(buf, "Speed = %.3f", game_data->meiling.move.speed);
 	DrawString(game_data->font, 0, 360, buf, 0xffffffff);
+	*/
 }
 
 void Destroy(GameData* game_data) {
 	DestroyFaceManager(&game_data->face_manager);
+	DestroyEnemyManager(&game_data->enm_manager);
 }
 
 #ifdef WIN32
@@ -188,14 +191,15 @@ void Destroy(GameData* game_data) {
 
 int main() {
 	window_t window = { 0 };
-	GameData data;
+	GameData* data = new GameData;
 	CreateGLWindow("STG game", 640, 480, false, &window);
-	Initialize(&data);
-	RunMainLoop(&window, &data, Move, Draw);
-	Destroy(&data);
+	Initialize(data);
+	RunMainLoop(&window, data, Move, Draw);
+	Destroy(data);
 #ifdef WIN32
 	char buf[512];
-	sprintf(buf, "Highest FPS: %.2f\n Lowest FPS: %.2f",data.highest_fps, data.lowest_fps);
+	sprintf(buf, "Highest FPS: %.2f\n Lowest FPS: %.2f",data->highest_fps, data->lowest_fps);
 	//MessageBox(NULL, buf, " ", MB_OK);
 #endif
+	delete data;
 }
