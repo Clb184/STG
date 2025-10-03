@@ -14,3 +14,8 @@ target_link_libraries(STG XPFW)
 
 set_target_properties(STG PROPERTIES DEBUGGER_WORKING_DIRECTORY ${CMAKE_HOME_DIRECTORY}/res/)
 
+option(BUILD_TESTS ON)
+
+#if(BUILD_TESTS)
+add_subdirectory("test/")
+#endif()

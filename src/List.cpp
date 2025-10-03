@@ -6,8 +6,8 @@ void InitSingleList(list_t* list, int max) {
 	list->nodes = (node_t*)calloc(max, sizeof(node_t));
 	list->max = max;
 	list->head = list->nodes;
-	list->tail = 0;
-	list->last_search = 0
+	list->last_search = 0;
+	list->count = 0;
 }
 
 void DestroySingleList(list_t* list) {
@@ -15,57 +15,99 @@ void DestroySingleList(list_t* list) {
 	memset(list, 0, sizeof(list_t));
 }
 
-void SLPushItem(list_t* list, void* data) {
-	if (list->count >= list->max) return;
+node_t* SLPushItem(list_t* list, void* data) {
+	if (list->count >= list->max) return nullptr;
 
-	int max = list->max;
-	node_t* node = list->head;
-	node_t* last = list->tail;
-	for (int i = 0; i < max; i++) {
-		if (list->nodes[i].active) {
+	int max = list->max, max2 = max;
+	node_t* node = nullptr;
+	int i = list->last_search;
+	int start = i;
+search:
+	// Look for space
+	for (; i < max2; i++) {
+		if (!list->nodes[i].active) {
+			// Free node
 			node = list->nodes + i;
-			prev = list->nodes;
-			continue;
+
+			node->active = true;
+			node->data = data;
+			node->next = nullptr;
+			list->last_search = (i + 1 >= max) ? 0 : i + 1;
+
+			goto look_for_node;
 		}
-
-		node->active = true;
-		node->data = data;
-		node->next = nullptr;
-		prev->next = list->nodes + i;
-		list->count++;
-
-		break;
 	}
+
+	i = 0;
+	max2 = start;
+	goto search;
+
+look_for_node:
+	// Look for the last node
+	for (node_t* idx = list->head; ; ) {
+		if (list->count == 0) {
+			break;
+		}
+		else if (idx->next == 0) {
+			idx->next = node;
+			break;
+		}
+		idx = idx->next;
+	}
+
+	// Finally node is found and that stuff
+	list->count++;
+	return node;
 }
 
 void SLPopItem(list_t* list) {
 	if (list->count <= 0) return;
-	for (node_t* node = list->head; 
-		node; 
-		node = node->next
-		) {
-
+	node_t* prev = 0;
+	for (node_t* node = list->head; ; ) {
+		if (node->next == 0) {
+			if (prev == 0) {
+				node->active = false;
+				break;
+			}
+			else {
+				node->active = false;
+				prev->next = 0;
+				break;
+			}
+		}
+		prev = node;
+		node = node->next;
 	}
 	list->count--;
 }
 
 void SLRemoveItemAt(list_t* list, int pos) {
 	if (pos >= list->count || pos < 0) return;
-	node_t* prev = list->head;
-	node_t* current = list->head;
-	for (int i = 0; i < pos; i++) {
+	node_t* prev = 0;
+	int i = 0;
+	for (node_t* node = list->head; ; ) {
 		if (i == pos) {
-			current->active = false;
-			prev->next = current->next;
-			list->count--;
-			break;
+			if (prev == 0) {
+				node->active = false;
+				list->head = node->next;
+				break;
+			}
+			else {
+				node->active = false;
+				prev->next = node->next;
+				break;
+			}
 		}
-		prev = current;
-		current = current->next;
+		prev = node;
+		node = node->next;
+		i++;
 	}
+	list->count--;
 }
 
 void SLReset(list_t* list) {
-	list->count = 0;
 	memset(list->nodes, 0, sizeof(node_t) * list->max);
+	list->count = 0;
+	list->head = list->nodes;
+	list->last_search = 0;
 }

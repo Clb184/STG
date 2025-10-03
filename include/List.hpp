@@ -13,7 +13,6 @@ struct node_t {
 
 typedef struct {
 	struct node_t* head;
-	struct node_t* tail;
 	struct node_t* nodes;
 	int count;
 	int last_search;
@@ -24,7 +23,7 @@ void InitSingleList(list_t* list, int max);
 
 void DestroySingleList(list_t* list);
 
-void SLPushItem(list_t* list, void* data);
+node_t* SLPushItem(list_t* list, void* data);
 
 void SLPopItem(list_t* list);
 
