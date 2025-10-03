@@ -31,7 +31,6 @@ void InitSingleList(list_t<T, max_space>* list) {
 
 template<typename T, int max_space>
 void DestroySingleList(list_t<T, max_space>* list) {
-	free(list->nodes);
 	memset(list, 0, sizeof(list_t<T, max_space>));
 }
 
@@ -97,7 +96,7 @@ search:
 			node = list->nodes + i;
 
 			node->active = true;
-			node->data = { };
+			// node->data = { }; Maybe I can avoid doing stuff here for few extra cycles lol
 			node->next = nullptr;
 			list->last_search = (i + 1 >= max) ? 0 : i + 1;
 
