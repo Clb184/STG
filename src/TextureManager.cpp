@@ -25,7 +25,8 @@ GLuint RegisterTexture(const char* source) {
 }
 
 void DestroyTextureManager() {
+	// Delete all at once
+	glDeleteTextures(tex_manager.cnt, tex_manager.textures);
+
 	tex_manager.cnt = 0;
-	free(tex_manager.textures);
-	free(tex_manager.texture_metrics);
 }
