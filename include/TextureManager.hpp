@@ -9,7 +9,10 @@ struct texture_manager_t {
 	GLuint* textures; // Texture ids for OpenGL
 };
 
-void InitTextureManager(texture_manager_t* tex_manager, int cnt);
+void InitTextureManager(texture_manager_t* tex_manager, int max);
+GLuint RegisterTexture(texture_manager_t* tex_manager, const char* source);
 void DestroyTextureManager(texture_manager_t* tex_manager);
+
+extern texture_manager_t tex_manager;
 
 #endif
