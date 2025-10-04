@@ -14,6 +14,8 @@ void InitTextureManager() {
 GLuint RegisterTexture(const char* source) {
 
 	int pos = tex_manager.cnt;
+	if (pos >= MAX_TEXTURES) return -1;
+
 	GLuint ret = -1;
 
 	LoadTextureFromFile(source, &ret, &tex_manager.texture_metrics[pos]);
