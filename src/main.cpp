@@ -4,13 +4,10 @@
 
 #include "XPFW.h"
 #include "Sprite.hpp"
-#include "Enemy.hpp"
-#include "Face.hpp"
 #include "Common.hpp"
-#include "FaceManager.hpp"
-#include "EnemyManager.hpp"
+#include "GameMain.hpp"
 
-typedef struct {
+struct GameData{
 	FT_Library library;
 	font_t* font;
 	font_descriptor_t font_desc;
@@ -18,18 +15,18 @@ typedef struct {
 	float all_time;
 	GLuint flat;
 	GLuint volume;
-	GLuint meiling_tex, meiling_vb, meiling_va;
 	GLuint facea, faceb;
-	float var;
 
-	face_manager_t face_manager;
-	enemy_manager_t enm_manager;
+	// Procedure
+	game_main_t game_main;
+	void* current_proc = nullptr;
+	int proc_id = 0;
 
 	float lowest_fps;
 	float highest_fps;
 
 	float tick_spd;
-} GameData;
+};
 
 void Initialize(GameData* game_data) {
 	// Default 2D shader
@@ -41,49 +38,13 @@ void Initialize(GameData* game_data) {
 	glDeleteShader(ps);
 	game_data->flat = pf;
 
-	// Test enemy
-	LoadTextureFromFile("boss10.png", &game_data->meiling_tex, nullptr);
-	CreateTL2DVertexBuffer(4, nullptr, GL_DYNAMIC_DRAW, &game_data->meiling_vb, &game_data->meiling_va);
-	game_data->var = 0.0f;
-
-	// Test face
-	LoadTextureFromFile("face06a.png", &game_data->facea, nullptr);
-	LoadTextureFromFile("face06b.png", &game_data->faceb, nullptr);
-	game_data->var = 0.0f;
-	InitFaceManager(&game_data->face_manager);
-	face_t* face = AddFace(&game_data->face_manager, 160.0f, 480.0f - 128.0f, 0.0f, game_data->facea);
-	SetSize(&face->sprite, 128.0f, 256.0f);
-	SetDirection(&face->sprite, RAD(0.0f));
-	SetUV(&face->sprite.uv, 0.0f, 0.5f, 0.0f, 1.0f);
-
-	face = AddFace(&game_data->face_manager, 160.0f + 128.0f, 480.0f - 128.0f, 0.0f, game_data->facea);
-	SetSize(&face->sprite, 128.0f, 256.0f);
-	SetDirection(&face->sprite, RAD(0.0f));
-	SetUV(&face->sprite.uv, 0.5f, 1.0f, 0.0f, 1.0f);
-
-	face = AddFace(&game_data->face_manager, 160.0f + 256.0f, 480.0f - 128.0f, 0.0f, game_data->faceb);
-	SetSize(&face->sprite, 128.0f, 256.0f);
-	SetDirection(&face->sprite, RAD(0.0f));
-	SetUV(&face->sprite.uv, 0.0f, 0.5f, 0.0f, 1.0f);
-
-	face = AddFace(&game_data->face_manager, 160.0f + 384.0f, 480.0f - 128.0f, 0.0f, game_data->faceb);
-	SetSize(&face->sprite, 128.0f, 256.0f);
-	SetDirection(&face->sprite, RAD(0.0f));
-	SetUV(&face->sprite.uv, 0.5f, 1.0f, 0.0f, 1.0f);
-
-	// Enemy manager
-	InitEnemyManager(&game_data->enm_manager);
-
-	enemy_t* meiling =  AddEnemy(&game_data->enm_manager, 100, 320.0f, 240.0f, 0.0f, game_data->meiling_tex);
-	SetSize(&meiling->sprite, 64.0f, 64.0f);
-	SetDirection(&meiling->sprite, RAD(0.0f));
-	SetUV(&meiling->sprite.uv, 0.0f, 0.25f, 0.0f, 0.25f);
-
 	// Initialize font render
 	InitializeFreeType(&game_data->library);
 	game_data->font = new font_t;
 	LoadFontFromFile(game_data->library, &game_data->font_desc, "PermanentMarker.ttf");
 	CreateFontWithAtlas(game_data->font_desc, game_data->font, 24.0f);
+
+	InitializeGameMain(&game_data->game_main);
 
 	// Other data
 	game_data->past_time = 0.0f;
@@ -98,42 +59,9 @@ void Initialize(GameData* game_data) {
 void Move(window_t* window,  void* data) {
 	float delta_time = window->delta_time;
 	GameData* game_data = (GameData*)data;
-	enemy_t* meiling = &game_data->enm_manager.enemy_list.nodes[0].data;
-	float tick = game_data->tick_spd;
 
-	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_1)) {
-		SetUV(&meiling->sprite.uv, 0.0f, 0.25f, 0.0f, 0.25f);
-	}
-	else if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_2)) {
-		SetUV(&meiling->sprite.uv, 0.25f, 0.5f, 0.0f, 0.25f);
-	}
-	else if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_3)) {
-		SetUV(&meiling->sprite.uv, 0.5f, 0.75f, 0.0f, 0.25f);
-	}
-	else if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_4)) {
-		SetUV(&meiling->sprite.uv, 0.75f, 1.00f, 0.0f, 0.25f);
-	}
+	MoveGameMain(&game_data->game_main, window->window);
 
-	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_Q)) {
-		SetMove(&meiling->move, meiling->x, meiling->y, 220.0f, 100.0f, 80, 7);
-	}
-	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_W)) {
-		SetMove(&meiling->move, meiling->x, meiling->y, 420.0f, 350.0f, 40, 7);
-	}
-	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_E)) {
-		SetMove(&meiling->move, meiling->x, meiling->y, 30.0f, 410.0f, 60, 7);
-	}
-	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_S)) {
-		SetMove(&meiling->move, meiling->x, meiling->y, 320.0f, 0.0f, 120, 7);
-	}
-	if (GLFW_PRESS == glfwGetKey(window->window, GLFW_KEY_D)) {
-		SetMoveDir(&meiling->move, meiling->x, meiling->y, RAD(90.0f), 300.0f, -300.0f, 0.0f, 60, 1);
-	}
-
-	TickMove(&meiling->move, tick, &meiling->x, &meiling->y);
-	// Do stuff
-	//game_data->meiling.y = 240.0f + DirectX::XMScalarSin(game_data->var * 2.0f) * 30.0f;
-	game_data->var += delta_time;
 	game_data->all_time += delta_time;
 }
 
@@ -146,13 +74,7 @@ void Draw(window_t* window, void* data) {
 	DirectX::XMMATRIX proj = DirectX::XMMatrixOrthographicOffCenterLH(0.0f, 640.0f, 480.0f, 0.0f, 1.0f, 1000.0f);
 	glUniformMatrix4fv(0, 1, GL_FALSE, (GLfloat*)&proj);
 
-	TLVertex2D* vertex = (TLVertex2D*)glMapNamedBuffer(game_data->meiling_vb, GL_WRITE_ONLY);
-
-	// Enemy
-	DrawEnemies(&game_data->enm_manager);
-
-	// Face
-	DrawFaces(&game_data->face_manager);
+	DrawGameMain(&game_data->game_main);
 
 	// Text
 	float fps = GetWindowFPS(window);
@@ -180,8 +102,7 @@ void Draw(window_t* window, void* data) {
 }
 
 void Destroy(GameData* game_data) {
-	DestroyFaceManager(&game_data->face_manager);
-	DestroyEnemyManager(&game_data->enm_manager);
+
 }
 
 #ifdef WIN32
