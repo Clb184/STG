@@ -127,6 +127,120 @@ look_for_node:
 }
 
 template<typename T, int max_space>
+node_t<T>* SLPushItemEx(list_t<T, max_space>* list, T data, int cnt) {
+	if (list->count >= max_space) return nullptr;
+	if (list->count + cnt >= max_space) cnt = max_space - list->count;
+
+	int max = max_space, max2 = max_space;
+	node_t<T>* node = nullptr;
+	int i = list->last_search;
+	int start = i; 
+	node_t<T>* idx = list->head;
+	int cnt2 = 0;
+search:
+	// Look for space
+	for (; i < max2; i++) {
+		if (!list->nodes[i].active) {
+			// Free node
+			node = list->nodes + i;
+
+			node->active = true;
+			node->data = data;
+			node->next = nullptr;
+			list->last_search = (i + 1 >= max) ? 0 : i + 1;
+			cnt2++;
+			goto look_for_node;
+		}
+	}
+
+	i = 0;
+	max2 = start;
+	goto search;
+
+look_for_node:
+	// Look for the last node
+	for (; ; ) {
+		if (list->count == 0) {
+			if (cnt2 < cnt) {
+				list->count++;
+				goto search;
+			}
+			break;
+		}
+		else if (idx->next == 0) {
+			idx->next = node;
+			if (cnt2 < cnt) {
+				list->count++;
+				goto search;
+			}
+			break;
+		}
+		idx = idx->next;
+	}
+
+	// Finally node is found and that stuff
+	list->count++;
+	return node;
+}
+
+template<typename T, int max_space>
+node_t<T>* SLPushItemEx(list_t<T, max_space>* list, int cnt) {
+	if (list->count >= max_space) return nullptr;
+	if (list->count + cnt >= max_space) cnt = max_space - list->count;
+
+	int max = max_space, max2 = max_space;
+	node_t<T>* node = nullptr;
+	int i = list->last_search;
+	int start = i;
+	node_t<T>* idx = list->head;
+	int cnt2 = 0;
+search:
+	// Look for space
+	for (; i < max2; i++) {
+		if (!list->nodes[i].active) {
+			// Free node
+			node = list->nodes + i;
+
+			node->active = true;
+			// node->data = { }; Maybe I can avoid doing stuff here for few extra cycles lol
+			node->next = nullptr;
+			list->last_search = (i + 1 >= max) ? 0 : i + 1;
+			cnt2++;
+			goto look_for_node;
+		}
+	}
+
+	i = 0;
+	max2 = start;
+	goto search;
+
+look_for_node:
+	// Look for the last node
+	for (; ; ) {
+		if (list->count == 0) {
+			if (cnt2 < cnt) {
+				list->count++;
+				goto search;
+			}
+			break;
+		}
+		else if (idx->next == 0) {
+			idx->next = node;
+			if (cnt2 < cnt) {
+				list->count++;
+				goto search;
+			}
+			break;
+		}
+		idx = idx->next;
+	}
+
+	// Finally node is found and that stuff
+	list->count++;
+	return node;
+}
+
+template<typename T, int max_space>
 void SLPopItem(list_t<T, max_space>* list) {
 	if (list->count <= 0) return;
 	node_t<T>* prev = 0;
