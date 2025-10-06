@@ -10,7 +10,7 @@
 int main() {
 	window_t window = { 0 };
 	STGData* data = new STGData;
-	CreateGLWindow("STG game", 640, 480, false, &window);
+	CreateGLWindow("STG game", 1280, 960, false, &window);
 	Initialize(data);
 	RunMainLoop(&window, data, Move, Draw);
 	Destroy(data);
