@@ -59,16 +59,16 @@ void MoveGameMain(game_main_t* game_main, GLFWwindow* window) {
 	float tick = game_main->step;
 	enemy_t* meiling = &game_main->enm_manager.enemy_list.nodes[0].data;
 	if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_1)) {
-		SetUV(&meiling->sprite.uv, 0.0f, 0.25f, 0.0f, 0.25f);
+		SetUVFromID(&meiling->sprite.uv, 0.0, 0.0f, 64.0f, 64.0f, meiling->sprite.id);
 	}
 	else if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_2)) {
-		SetUV(&meiling->sprite.uv, 0.25f, 0.5f, 0.0f, 0.25f);
+		SetUVFromID(&meiling->sprite.uv, 64.0, 0.0f, 64.0f, 64.0f, meiling->sprite.id);
 	}
 	else if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_3)) {
-		SetUV(&meiling->sprite.uv, 0.5f, 0.75f, 0.0f, 0.25f);
+		SetUVFromID(&meiling->sprite.uv, 128.0, 0.0f, 64.0f, 64.0f, meiling->sprite.id);
 	}
 	else if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_4)) {
-		SetUV(&meiling->sprite.uv, 0.75f, 1.00f, 0.0f, 0.25f);
+		SetUVFromID(&meiling->sprite.uv, 192.0, 0.0f, 64.0f, 64.0f, meiling->sprite.id);
 	}
 
 	if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_Q)) {

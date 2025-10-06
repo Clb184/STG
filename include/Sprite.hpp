@@ -4,16 +4,11 @@
 #include <GL/glew.h>
 #include <stdint.h>
 #include <Misc/Primitives.h>
-
-typedef struct {
-	float u0;
-	float u1;
-	float v0;
-	float v1;
-} quad_t;
+#include "Common.hpp"
 
 typedef struct {
 	GLuint texture;
+	int id;
 	float width, height;
 	float scale_x, scale_y;
 	float dirs, dirc;

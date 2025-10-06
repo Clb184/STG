@@ -1,4 +1,5 @@
 #include "TextureManager.hpp"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,4 +30,21 @@ void DestroyTextureManager() {
 	glDeleteTextures(tex_manager.cnt, tex_manager.textures);
 
 	tex_manager.cnt = 0;
+}
+
+void SetUVFromID(quad_t* quad, float x, float y, float w, float h, int tex_id) {
+	assert(nullptr != quad);
+	if (tex_id > tex_manager.cnt) return;
+	texture_metric_t metric = tex_manager.texture_metrics[tex_id];
+
+	quad->u0 = x * metric.texelw;
+	quad->u1 = (x + w) * metric.texelw;
+	quad->v0 = y * metric.texelh;
+	quad->v1 = (y + h) * metric.texelh;
+}
+
+void SetTextureFromID(GLuint* tex, int tex_id) {
+	assert(nullptr != tex);
+	if (tex_id > tex_manager.cnt) return;
+	*tex = tex_manager.textures[tex_id];
 }

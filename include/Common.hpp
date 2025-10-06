@@ -7,4 +7,11 @@ constexpr inline float Lerp(float t, float a, float b) {
 	return (1 - t) * a + t * b;
 }
 
+typedef struct {
+	float u0;
+	float u1;
+	float v0;
+	float v1;
+} quad_t;
+
 #endif

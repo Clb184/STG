@@ -3,6 +3,7 @@
 
 void InitSprite(sprite_t* sprite) {
 	sprite->texture = 0;
+	sprite->id = 0;
 	sprite->width = 32.0f;
 	sprite->height = 32.0f;
 	sprite->scale_x = 1.0f;
