@@ -13,6 +13,7 @@ int main() {
 	CreateGLWindow("STG game", 1280, 960, false, &window);
 	Initialize(data);
 	RunMainLoop(&window, data, Move, Draw);
+
 	Destroy(data);
 #ifdef WIN32
 	char buf[512];

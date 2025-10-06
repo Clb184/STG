@@ -38,7 +38,7 @@ bool InitializeGameMain(game_main_t* game_main) {
 	SetDirection(&face->sprite, RAD(0.0f));
 	SetUV(&face->sprite.uv, 0.5f, 1.0f, 0.0f, 1.0f);
 	*/
-	enemy_t* meiling = AddEnemy(&game_main->enm_manager, 100, 0.0f, 240.0f, 0.0f, mei);
+	enemy_t* meiling = AddEnemy(&game_main->enm_manager, 100, 0.0f, 0.0f, 0.0f, mei);
 	SetSize(&meiling->sprite, 64.0f, 64.0f);
 	SetDirection(&meiling->sprite, RAD(0.0f));
 	SetUV(&meiling->sprite.uv, 0.0f, 0.25f, 0.0f, 0.25f);
@@ -84,7 +84,7 @@ void MoveGameMain(game_main_t* game_main, GLFWwindow* window) {
 		SetMove(&meiling->move, meiling->x, meiling->y, 320.0f - 320.0f, 0.0f, 120, 7);
 	}
 	if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_D)) {
-		SetMoveDir(&meiling->move, meiling->x, meiling->y, RAD(90.0f), 300.0f, -300.0f, 0.0f, 60, 1);
+		SetMoveDir(&meiling->move, meiling->x, meiling->y, RAD(90.0f), 12.0f, -0.8f, 0.0f, 20, 1);
 	}
 
 	TickMove(&meiling->move, tick, &meiling->x, &meiling->y);

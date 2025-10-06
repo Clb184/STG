@@ -1,5 +1,7 @@
 #include "Move.hpp"
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "Common.hpp"
 #include <DirectXMath.h>
 
@@ -73,24 +75,21 @@ void TickMove(move_t* move, float value, float* x, float* y) {
 move_dir:
 	switch (move->type - 0x100) {
 	case 0: // Move at constant speed
-		*x = Lerp(t, move->ix, move->ix + move->time * move->speed * move->cdir);
-		*y = Lerp(t, move->iy, move->iy + move->time * move->speed * move->sdir);
+		*x += move->speed * move->cdir * value;
+		*y += move->speed * move->sdir * value;
 		break;
 	case 1: // Move with acceleration
 	{
-		float factor = move->speed * val + 0.5 * move->accel * val * val;
-		*x = move->ix + factor * move->cdir;
-		*y = move->iy + factor * move->sdir;
-	}
+		float factor = move->speed * value;
+		*x += factor * move->cdir;
+		*y += factor * move->sdir;
+		move->speed += value * move->accel;
+		//printf("val: %f, speed: %f, factor: %f, accel: %f\n", value, move->speed, factor, move->accel);
+	}	
 		break;
 	case 2: //
 	{
-		float s, c;
-		DirectX::XMScalarSinCos(&s, &c, Lerp(t, move->sdir, move->rol));
-		move->ix += move->speed * value * c;
-		move->iy += move->speed * value * s;
-		*x = move->ix;
-		*y = move->iy;
+
 	}
 		break;
 	}
