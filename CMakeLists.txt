@@ -3,7 +3,28 @@ project(STG_GAME LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(BUILD_DEMO OFF)
-set(CMAKE_DEBUG_POSTFIX d)
+
+if("" STREQUAL "${CMAKE_BUILD_TYPE}")
+	message("Configuration not selected, defaulting to debug")
+	set(CMAKE_BUILD_TYPE "Debug")
+	message("Config is now ${CMAKE_BUILD_TYPE}")
+endif()
+
+# Set some variables to disable stuff I don't want to build.
+# I only use static libs so I have less files to deal with,
+# and also use some debug postfix like d for debug builds
+set(CMAKE_DEBUG_POSTFIX "d")
+
+# Replace the "Release" string however was written so
+# the CMAKE_DEBUG_POSTFIX variable can be "removed"
+string(REGEX REPLACE "([Rr][Ee][Ll][Ee][Aa][Ss][Ee])" "RELEASE" RELEASE_CFG ${CMAKE_BUILD_TYPE})
+
+if("RELEASE" STREQUAL ${RELEASE_CFG})
+set(CMAKE_DEBUG_POSTFIX "")
+endif()
+
+message("Debug postfix is: ${CMAKE_DEBUG_POSTFIX} for ${CMAKE_BUILD_TYPE}" )
+
 message("Directory is: ${CMAKE_CURRENT_SOURCE_DIR}")
 add_subdirectory("deps/XPFW")
 
