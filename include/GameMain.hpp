@@ -13,6 +13,8 @@ struct game_main_t {
 	face_manager_t face_manager; // Hold and manager faces (dialogue)
 };
 
+extern struct ShaderData shaders;
+
 bool InitializeGameMain(game_main_t* game_main);
 void DestroyGameMain(game_main_t* game_main);
 
