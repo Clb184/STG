@@ -1,22 +1,23 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include <vector>
+#include <map>
 #include <string>
 
 #define ERROR_EXIT(s) printf(s);\
 return false
 
 enum TK_TYPE {
-	TT_KEYWORD,
-	TT_INT,
-	TT_FLOAT,
-	TT_BRACKET_OPEN,
-	TT_BRACKET_CLOSE,
-	TT_PARENTHESIS_OPEN,
-	TT_PARENTHESIS_CLOSE,
-	TT_COMMA,
-	TT_IDENTIFIER,
-	TT_OPERATOR,
+	TT_KEYWORD = 1 << 0,
+	TT_INT = 1 << 1,
+	TT_FLOAT = 1 << 2,
+	TT_BRACKET_OPEN = 1 << 3,
+	TT_BRACKET_CLOSE = 1 << 4,
+	TT_PARENTHESIS_OPEN = 1 << 5,
+	TT_PARENTHESIS_CLOSE = 1 << 6,
+	TT_COMMA = 1 << 7,
+	TT_IDENTIFIER = 1 << 8,
+	TT_OPERATOR = 1 << 9,
 };
 
 enum KEYWORDS {
@@ -43,8 +44,12 @@ struct token_t {
 	int line;
 };
 
+struct subroutine_t {
+	int size;
+};
+
 std::vector<token_t> tokens;
-std::vector<std::string> function_names;
+std::map<std::string, subroutine_t> function_names;
 const char* name = "test.scpt";
 
 
@@ -79,8 +84,14 @@ bool Tokenize(char* data) {
 	while (c = *data) {
 		if (IsLetterOrUnderscore(c)) { // Identifier
 			std::string str = "";
-			while (IsAlphaNum(c = *data++)) {
-				str.push_back(c);
+			while (c = *data) {
+				if (IsAlphaNum(c)) {
+					str.push_back(c);
+					data++;
+				}
+				else {
+					break;
+				}
 			}
 			KEYWORDS kwd = GetType(str);
 			tokens.push_back({ std::move(str), kwd, kwd == KW_OTHER ? TT_IDENTIFIER : TT_KEYWORD, 0, line });
@@ -149,10 +160,54 @@ bool Tokenize(char* data) {
 	return true;
 }
 
+bool TranformBlockData(size_t* idx) {
+	size_t size = tokens.size();
+	size_t i = *idx;
+	for (; i < size; ) {
+		switch (tokens[i].token_type) {
+		default: i++; break;
+		case TT_BRACKET_CLOSE: *idx = i; return true;
+		}
+	}
+}
+
 bool Transform() {
 	size_t size = tokens.size();
-	for (auto& t : tokens) {
-
+	bool on_function = false;
+	subroutine_t subr = { 0 };
+	int next_token = TT_KEYWORD;
+	for (size_t i = 0; i < size; ) {
+		if (!(next_token & tokens[i].token_type)) {
+			ERROR_EXIT("This token was not expected at this time\n");
+		}
+		switch (tokens[i].token_type) {
+		case TT_KEYWORD:
+			switch (tokens[i].keyword_id) {
+			case KW_FUNCTION:
+				if (on_function) {
+					ERROR_EXIT("Can't declare a function inside another\n");
+				}
+				if (i + 1 < size && tokens[i + 1].token_type == TT_IDENTIFIER) { // Detect an identifier
+					on_function = true;
+					i += 2;
+					next_token = TT_PARENTHESIS_OPEN | TT_BRACKET_OPEN;
+				}
+				break;
+			case KW_INT:
+			case KW_FLOAT:
+				break;
+			}
+			break;
+		case TT_BRACKET_OPEN:
+			i++;
+			if (false == TranformBlockData(&i)) return false;
+			next_token = TT_BRACKET_CLOSE;
+			break;
+		case TT_BRACKET_CLOSE:
+			next_token = TT_KEYWORD;
+			on_function = false;
+			break;
+		}
 	}
 	return true;
 }
