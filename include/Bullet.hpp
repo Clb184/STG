@@ -8,6 +8,6 @@ typedef struct {
 	float dir;
 	move_t move;
 	sprite_t sprite;
-} enemy_t;
+} bullet_t;
 
 #endif
