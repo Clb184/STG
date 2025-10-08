@@ -8,4 +8,5 @@ fn main {
 }
 
 fn func(int a) {
+
 }

@@ -21,19 +21,54 @@ enum TK_TYPE {
 };
 
 enum KEYWORDS {
-	KW_OTHER,
-	KW_FUNCTION,
-	KW_INT,
-	KW_FLOAT,
-	KW_TIMES,
-	KW_IF,
-	KW_WHILE,
-	KW_RETURN,
+	KW_OTHER = 1 << 1,
+	KW_FUNCTION = 1 << 2,
+	KW_INT = 1 << 3,
+	KW_FLOAT = 1 << 4,
+	KW_TIMES = 1 << 5,
+	KW_IF = 1 << 6,
+	KW_WHILE = 1 << 7,
+	KW_RETURN = 1 << 8,
+};
+
+enum VM_COMMAND {
+	VMC_NULL, // Do nothing, literally
+	VMC_NOP, // Do nothing for 1 frame
+	VMC_NOP2, // Do nothing for x frames
+
+	// Stack operations
+	VMC_PUSHC, // Push constant
+
+	VMC_PUSHR, // Push register
+	VMC_PUSHL, // Push local variable
+	VMC_PUSHG, // Push global variable
+
+	VMC_POPR, // Pop to register
+	VMC_POPL, // Pop to local variable
+	VMC_POPG, // Pop to global variable
+
+	VMC_MOVR, // Move constant to register
+	VMC_MOVL, // Move constant to local variable
+	VMC_MOVG, // Move constant to global variable
+
+	VMC_ADDI, // r + r
+	VMC_SUBI, // r - r
+	VMC_MULI, // r * r
+	VMC_DIVI, // r / r
+	VMC_MODI, // r % r
+	VMC_NEGI, // -r
+	VMC_FTOI, // ftoi(r) 
+
 };
 
 union number_t {
 	float real;
 	int integer;
+};
+
+struct command_struct_t {
+	VM_COMMAND cmd;
+
 };
 
 struct token_t {
@@ -174,14 +209,19 @@ bool TranformBlockData(size_t* idx) {
 bool Transform() {
 	size_t size = tokens.size();
 	bool on_function = false;
+	bool on_parameter_declare = false;
 	subroutine_t subr = { 0 };
 	int next_token = TT_KEYWORD;
+	int next_keyword = KW_FUNCTION;
 	for (size_t i = 0; i < size; ) {
 		if (!(next_token & tokens[i].token_type)) {
 			ERROR_EXIT("This token was not expected at this time\n");
 		}
 		switch (tokens[i].token_type) {
 		case TT_KEYWORD:
+			if (!(next_keyword & tokens[i].keyword_id)) {
+				ERROR_EXIT("This keyword was not expected at this time\n");
+			}
 			switch (tokens[i].keyword_id) {
 			case KW_FUNCTION:
 				if (on_function) {
@@ -195,6 +235,19 @@ bool Transform() {
 				break;
 			case KW_INT:
 			case KW_FLOAT:
+				if (on_parameter_declare) {
+					if (i + 1 < size && (tokens[i + 1].token_type & TT_IDENTIFIER)) {
+						next_token = TT_COMMA | TT_PARENTHESIS_CLOSE;
+						i += 2;
+					}
+					else {
+						ERROR_EXIT("Missing identifier maybe\n");
+					}
+
+				}
+				else {
+					ERROR_EXIT("Int or float declaration must be put inside brackets\n");
+				}
 				break;
 			}
 			break;
@@ -205,7 +258,23 @@ bool Transform() {
 			break;
 		case TT_BRACKET_CLOSE:
 			next_token = TT_KEYWORD;
+			next_keyword = KW_FUNCTION;
 			on_function = false;
+			i++;
+			break;
+		case TT_PARENTHESIS_OPEN:
+			next_token = TT_KEYWORD | TT_PARENTHESIS_CLOSE;
+			next_keyword = KW_INT | KW_FLOAT;
+			on_parameter_declare = true;
+			i++;
+			break;
+		case TT_PARENTHESIS_CLOSE:
+			next_token = TT_BRACKET_OPEN;
+			on_parameter_declare = false;
+			i++;
+			break;
+		default:
+			i++;
 			break;
 		}
 	}
