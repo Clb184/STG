@@ -259,6 +259,8 @@ void RunVM(vm_t* vm) {
 	// Registers
 	number_t a = vm->a, b = vm->b, c = vm->c, d = vm->d;
 	number_t* stack = vm->locals;
+	int* register_data = vm->register_data;
+	int* global_data = vm->global_reg_data;
 	int frame_pointer = vm->frame_pointer;
 	int stack_pointer = vm->stack_pointer;
 
@@ -294,8 +296,13 @@ cmd_begin:
 		cmd += 2 + sizeof(int);
 		break;
 	case VMC_PUSHR:
-		assert(nullptr != vm->register_data);
-		StkPush(vm->register_data[*((int*)(cmd + 2))]);
+		assert(nullptr != register_data);
+		StkPush(register_data[*((int*)(cmd + 2))]);
+		cmd += 2 + sizeof(int);
+		break;
+	case VMC_PUSHG:
+		assert(nullptr != global_data);
+		StkPush(global_data[*((int*)(cmd + 2))]);
 		cmd += 2 + sizeof(int);
 		break;
 
@@ -311,12 +318,19 @@ cmd_begin:
 	}
 	break;
 	case VMC_SETR: {
-		assert(nullptr != vm->register_data);
+		assert(nullptr != register_data);
 		int reg = *((int*)(cmd + 2));
-		vm->register_data[reg] = *((int*)(cmd + 2 + sizeof(int)));
+		register_data[reg] = *((int*)(cmd + 2 + sizeof(int)));
 		cmd += 2 + sizeof(int) * 2;
 	}
 	break;
+	case VMC_SETG: {
+		assert(nullptr != global_data);
+		int reg = *((int*)(cmd + 2));
+		global_data[reg] = *((int*)(cmd + 2 + sizeof(int)));
+		cmd += 2 + sizeof(int) * 2;
+	}
+				 break;
 
 	// Pop functions
 	case VMC_POPL: {
@@ -326,12 +340,19 @@ cmd_begin:
 	}
 	break;
 	case VMC_POPR: {
-		assert(nullptr != vm->register_data);
+		assert(nullptr != register_data);
 		int reg = *((int*)(cmd + 2));
-		vm->register_data[frame_pointer + reg] = StkPop();
+		register_data[frame_pointer + reg] = StkPop();
 		cmd += 2 + sizeof(int);
 	}
 	break;
+	case VMC_POPG: {
+		assert(nullptr != global_data);
+		int reg = *((int*)(cmd + 2));
+		global_data[frame_pointer + reg] = StkPop();
+		cmd += 2 + sizeof(int);
+	}
+				 break;
 
 	// Arithmetic functions (int)
 	case VMC_ADDI: { StkDualOp<int>([](int a, int b) { return a + b; }); cmd += 2; } break;
