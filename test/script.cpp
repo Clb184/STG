@@ -3,6 +3,7 @@
 #include <vector>
 #include <map>
 #include <string>
+#include <assert.h>
 
 #define ERROR_EXIT(s) printf(s);\
 return false
@@ -36,11 +37,16 @@ enum VM_COMMAND {
 	VMC_NOP, // Do nothing for 1 frame
 	VMC_NOP2, // Do nothing for x frames
 
+	VMC_CALL, // Call a function
+	VMC_RETURN, // Return from function
+	VMC_KILL, // Kill the object related to the VM
+
 	// Stack operations
 	VMC_ENTER, // Move stack base pointer up to new routine
 	VMC_STACKMOVE, // Move stack pointer
 	VMC_LEAVE, // Move stack base pointer down to previous routine
 	VMC_PUSHC, // Push constant
+	VMC_STACKCLEAR, // Clear the stack
 
 	VMC_PUSHR, // Push register
 	VMC_PUSHL, // Push local variable
@@ -50,9 +56,9 @@ enum VM_COMMAND {
 	VMC_POPL, // Pop to local variable
 	VMC_POPG, // Pop to global variable
 
-	VMC_MOVR, // Move constant to register
-	VMC_MOVL, // Move constant to local variable
-	VMC_MOVG, // Move constant to global variable
+	VMC_SETR, // Set constant to register
+	VMC_SETL, // Set constant to local variable
+	VMC_SETG, // Set constant to global variable
 
 	VMC_ADDI, // r + r
 	VMC_SUBI, // r - r
@@ -74,61 +80,185 @@ union number_t {
 
 struct command_struct_t {
 	VM_COMMAND cmd;
-	const char* cmd_name;
-	std::vector<number_t> parameters;
+	int num_args;
 };
 
-struct std::vector<command_struct_t> commands = {
-	{VMC_NOP, "Wait", {} },
-	{VMC_NOP2, "WaitEx", {} },
+struct std::map<const std::string, command_struct_t> commands = {
+	{"Nop",      {VMC_NOP, 0}},
+	{"Nop2",     {VMC_NOP2, 1}},
 
-	{VMC_ENTER, "Enter"},
-	{VMC_STACKMOVE, "StackMove"},
-	{VMC_LEAVE, "Leave"},
+	{"Call",      {VMC_CALL, 1}},
+	{"Return",    {VMC_RETURN, 0}},
+	{"Kill",      {VMC_KILL, 0}},
 
-	{VMC_PUSHC, "PushC"},
+	{"Enter",     {VMC_ENTER, 1}},
+	{"StackMove", {VMC_STACKMOVE, 1}},
+	{"Leave",     {VMC_LEAVE, }},
 
-	{VMC_PUSHR, "PushR"},
-	{VMC_PUSHL, "PushL"},
-	{VMC_PUSHG, "PushG"},
+	{"PushC",     {VMC_PUSHC, 1}},
+	{"StackClear",  {VMC_STACKCLEAR, 1}},
 
-	{VMC_POPR, "PopR"},
-	{VMC_POPL, "PopL"},
-	{VMC_POPG, "PopG"},
+	{"PushR",     {VMC_PUSHR, 1}},
+	{"PushL",     {VMC_PUSHL, 1}},
+	{"PushG",     {VMC_PUSHG, 1}},
 
-	{VMC_MOVR, "MovR"},
-	{VMC_MOVL, "MovL"},
-	{VMC_MOVG, "MovG"},
+	{"PopR",      {VMC_POPR, 1}},
+	{"PopL",      {VMC_POPL, 1}},
+	{"PopG",      {VMC_POPG, 1}},
 
-	{VMC_ADDI, "AddI"},
-	{VMC_SUBI, "SubI"},
-	{VMC_MULI, "MulI"},
-	{VMC_DIVI, "DivI"},
-	{VMC_MODI, "ModI"},
-	{VMC_NEGI, "NegI"},
-	{VMC_F2I, "F2I"},
+	{"SetR",      {VMC_SETR, 2}},
+	{"SetL",      {VMC_SETL, 2}},
+	{"SetG",      {VMC_SETG, 2}},
 
-	{VMC_SETPOS, "SetPos"},
-	{VMC_MOVEPOS, "MovePos"},
-	{VMC_MOVEDIR, "MoveDir"},
+	{"AddI",      {VMC_ADDI, 0}},
+	{"SubI",      {VMC_SUBI, 0}},
+	{"MulI",      {VMC_MULI, 0}},
+	{"DivI",      {VMC_DIVI, 0}},
+	{"ModI",      {VMC_MODI, 0}},
+	{"NegI",      {VMC_NEGI, 0}},
+	{"F2I",       {VMC_F2I, 0}},
+
+	{"SetPos",    {VMC_SETPOS, 2}},
+	{"MovePos",   {VMC_MOVEPOS, 4}},
+	{"MoveDir",   {VMC_MOVEDIR, 3}},
 };
 
-const int max_stack = 128;
+const int max_locals = 64;
+const int max_calcstack = 128;
 const int call_depth = 8;
+
+struct calcstack_t {
+	number_t stack[max_calcstack];
+	int stack_pointer;
+} calc_stack;
+
+void StkInitialize() {
+	memset(calc_stack.stack, 0, sizeof(number_t) * max_calcstack);
+	calc_stack.stack_pointer = 0;
+}
+
+void StkPush(int val) {
+	if (calc_stack.stack_pointer < max_calcstack) {
+		calc_stack.stack[calc_stack.stack_pointer].integer = val;
+		calc_stack.stack_pointer++;
+	}
+	else {
+		printf("Stack Overflow\n");
+	}
+}
+
+int StkPop() {
+	if (calc_stack.stack_pointer > 0) {
+		calc_stack.stack_pointer--;
+		return calc_stack.stack[calc_stack.stack_pointer].integer;
+	}
+	else {
+		printf("Stack Underflow\n");
+	}
+	return -1;
+}
+
 
 // Virtual machine
 struct vm_t {
 	int* register_data; // A pointer to the registers data
+	int* global_reg_data; // A pointer to global registers data
+	char* command_data; // A pointer to the command data
 
 	number_t a, b, c, d; // Acumulator, Base address?, Counter, Data
 
-	int stack[max_stack]; // A stack to do operations in
+	number_t locals[max_locals]; // A stack to store local variables and past frame_pointer
 	int frame_pointer; // The start of the stack in current call
 	int stack_pointer; // The current size of the stack
+	int num_locals;
 
 	char* call_stack[call_depth]; // A stack to store return addresses
 	int return_pointer; // Where should we go back when returning from call
 };
+
+void InitVM(vm_t* vm, char* cmd_data) {
+	assert(nullptr != vm);
+
+	memset(vm, 0, sizeof(vm_t));
+	vm->command_data = cmd_data;
+}
+
+void RunVM(vm_t* vm) {
+	assert(nullptr != vm);
+
+	// Registers
+	number_t a = vm->a, b = vm->b, c = vm->c, d = vm->d;
+	number_t* stack = vm->locals;
+	int frame_pointer = vm->frame_pointer;
+	int stack_pointer = vm->stack_pointer;
+
+	// Commands
+	char* cmd = vm->command_data;
+cmd_begin:
+	switch (*(uint16_t*)cmd) {
+	case VMC_NOP:
+		cmd += 2;
+		break;
+	case VMC_NOP2: {
+		int wait = StkPop();
+		cmd += 2;
+	}
+		break;
+
+	case VMC_KILL:
+		goto cmd_exit;
+		break;
+
+	case VMC_ENTER:
+		frame_pointer = stack_pointer;
+		stack_pointer += *((int*)(cmd + 2));
+		cmd += 2 + sizeof(int);
+		break;
+	case VMC_PUSHC:
+		StkPush(*((int*)(cmd + 2)));
+		cmd += 2 + sizeof(int);
+		break;
+	case VMC_PUSHL:
+		StkPush(stack[frame_pointer + *((int*)(cmd + 2))].integer);
+		cmd += 2 + sizeof(int);
+		break;
+	case VMC_STACKCLEAR:
+		cmd += 2;
+		break;
+	case VMC_SETL: {
+		int reg = *((int*)(cmd + 2));
+		stack[frame_pointer + reg].integer = *((int*)(cmd + 2 + sizeof(int)));
+		cmd += 2 + sizeof(int) * 2;
+	}
+		break;
+	case VMC_SETPOS: {
+		int p1 = StkPop(), p2 = StkPop();
+		number_t x, y;
+		x.integer = StkPop();
+		y.integer = StkPop();
+		cmd += 2 + sizeof(int) * 2;
+	}
+		break;
+	case VMC_MOVEPOS: {
+		int p1 = *((int*)(cmd + 2)), p2 = *((int*)(cmd + 2 + sizeof(int))), p3 = *((int*)(cmd + 2 + 2 * sizeof(int))), p4 = *((int*)(cmd + 2 + 3 *sizeof(int)));
+		int time = stack[frame_pointer + p1].integer;
+		int mode = stack[frame_pointer + p2].integer;
+		int final_x = stack[frame_pointer + p3].real;
+		int final_y = stack[frame_pointer + p4].real;
+		cmd += 2 + sizeof(int) * 4;
+	}
+		break;
+	}
+	goto cmd_begin;
+cmd_exit:
+	vm->a = a; vm->b = b; vm->c = c; vm->d = d;
+	vm->frame_pointer = frame_pointer;
+	vm->stack_pointer = stack_pointer;
+	return;
+cmd_error:
+	printf("And error has ocurred\n");
+	return;
+}
 
 struct token_t {
 	std::string val;
@@ -138,11 +268,17 @@ struct token_t {
 	int line;
 };
 
+struct token_size_t {
+	int value;
+	int size;
+};
+
 struct subroutine_t {
 	int size;
 };
 
 std::vector<token_t> tokens;
+std::vector<token_size_t> out_tokens;
 std::map<std::string, subroutine_t> function_names;
 const char* name = "test.scpt";
 
@@ -187,7 +323,7 @@ bool Tokenize(char* data) {
 				}
 			}
 			KEYWORDS kwd = GetType(str);
-			tokens.push_back({ std::move(str), kwd, kwd == KW_OTHER ? TT_IDENTIFIER : TT_KEYWORD, 0, line });
+			tokens.push_back({ std::move(str), kwd, kwd & KW_OTHER ? TT_IDENTIFIER : TT_KEYWORD, 0, line });
 			str = "";
 		}
 		else if (c >= '0' && c <= '9') { // Number
@@ -257,16 +393,30 @@ bool TranformBlockData(size_t* idx) {
 	size_t size = tokens.size();
 	size_t i = *idx;
 	for (; i < size; ) {
-		switch (tokens[i].token_type) {
+		const token_t& tok = tokens[i];
+		switch (tok.token_type) {
 		default: i++; break;
-		case TT_IDENTIFIER: {
-				for (auto& cmd : commands) {
-					if(std::string(cmd.cmd_name) == tokens[i].val)
-						printf("Found %s\n", cmd.cmd_name);
-				}
-				i++;
+		case TT_IDENTIFIER:
+			if (commands.find(tok.val) != commands.end()) {
+				int cmd_val = commands[tok.val].cmd;
+				printf("Found %s (0x%x)\n", tok.val.c_str(), cmd_val);
+				out_tokens.push_back({cmd_val, 2});
 			}
+			i++;
 			break;
+		case TT_INT: {
+			int val = std::stol(tok.val);
+			printf("Int value %d\n", val);
+			out_tokens.push_back({ val, 4 });
+			i++;
+		} break;
+		case TT_FLOAT: {
+			number_t val;
+			val.real = std::stod(tok.val);
+			printf("Float value %f\n", val.real);
+			out_tokens.push_back({ val.integer, 4 });
+			i++;
+		} break;
 		case TT_BRACKET_CLOSE: *idx = i; return true;
 		}
 	}
@@ -294,7 +444,7 @@ bool Transform() {
 				if (on_function) {
 					ERROR_EXIT("Can't declare a function inside another\n");
 				}
-				if (i + 1 < size && tokens[i + 1].token_type == TT_IDENTIFIER) { // Detect an identifier
+				if (i + 1 < size && (tokens[i + 1].token_type & TT_IDENTIFIER)) { // Detect an identifier
 					on_function = true;
 					func_name = tokens[i + 1].val;
 					i += 2;
@@ -352,27 +502,37 @@ bool Transform() {
 	return true;
 }
 
-int main(int argc, char** argv) {
-	if (argc < 1) {
-		printf("Not enough arguments\n");
-		return -1;
-	}
+// Command data for testing
+char* idata = nullptr;
+size_t isize = 0;
 
-	if (FILE* fp = fopen(name, "r")) {
-		fseek(fp, 0, SEEK_END);
-		size_t size = ftell(fp);
-		rewind(fp);
-		char* data = (char*)calloc(size + 1, sizeof(char));
-		fread(data, size, sizeof(char), fp);
-		fclose(fp);
-		if (Tokenize(data)) {
-			if (Transform()) {
-
-			}
+void Token2Data() {
+	char* data = (char*)calloc(out_tokens.size(), sizeof(int));
+	char* offset = data;
+	size_t size = 0;
+	for (auto& t: out_tokens) {
+		switch (t.size) {
+		case 2:
+			*((int16_t*)offset) = (int16_t)t.value;
+			offset += sizeof(int16_t);
+			size += sizeof(int16_t);
+			break;
+		case 4:
+			*((int*)offset) = t.value;
+			offset += sizeof(int);
+			size += sizeof(int);
+			break;
+		default:
+			break;
 		}
-		free(data);
 	}
+	idata = (char*)calloc(size + 1, sizeof(char));
+	memcpy(idata, data, size);
+	free(data);
+	isize = size;
+}
 
+void PrintTokens() {
 	printf("There are %d tokens:\n", tokens.size());
 	for (auto& s : tokens) {
 		printf("%s : Type - ", s.val.data());
@@ -391,8 +551,38 @@ int main(int argc, char** argv) {
 		printf("\n");
 	}
 	printf("\n");
+}
+
+void PrintFunction() {
 	printf("There are %d functions:\n", function_names.size());
 	for (auto& s : function_names) {
 		printf("Subroutine: %s\n", s.first.c_str());
 	}
+}
+
+int main(int argc, char** argv) {
+	if (argc < 1) {
+		printf("Not enough arguments\n");
+		return -1;
+	}
+
+	if (FILE* fp = fopen(name, "r")) {
+		fseek(fp, 0, SEEK_END);
+		size_t size = ftell(fp);
+		rewind(fp);
+		char* data = (char*)calloc(size + 1, sizeof(char));
+		fread(data, size, sizeof(char), fp);
+		fclose(fp);
+		if (Tokenize(data)) {
+			if (Transform()) {
+				Token2Data();
+			}
+		}
+		free(data);
+
+		vm_t vm;
+		InitVM(&vm, idata);
+		RunVM(&vm);
+	}
+
 }
