@@ -17,6 +17,19 @@ fn main {
 	MovePos()
 
 	Nop()
+
+	PushL(1)
+	PushL(0)
+	PushC(3.0)
+	MulF()
+	AddF()
+	PopR(1)
+	PushR(1)
+	F2I()
+	PushC(23)
+	AddI()
+	PopR(0)
+
 	Kill()
 }
 
