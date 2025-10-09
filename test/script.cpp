@@ -244,11 +244,13 @@ struct vm_t {
 	int return_pointer; // Where should we go back when returning from call
 };
 
-void InitVM(vm_t* vm, char* cmd_data) {
+void InitVM(vm_t* vm, char* cmd_data, void* reg_data, void* glob_data) {
 	assert(nullptr != vm);
 
 	memset(vm, 0, sizeof(vm_t));
 	vm->command_data = cmd_data;
+	vm->register_data = (int*)reg_data;
+	vm->global_reg_data = (int*)glob_data;
 }
 
 void RunVM(vm_t* vm) {
@@ -281,6 +283,8 @@ cmd_begin:
 		stack_pointer += *((int*)(cmd + 2));
 		cmd += 2 + sizeof(int);
 		break;
+
+	// Push operations
 	case VMC_PUSHC:
 		StkPush(*((int*)(cmd + 2)));
 		cmd += 2 + sizeof(int);
@@ -289,16 +293,47 @@ cmd_begin:
 		StkPush(stack[frame_pointer + *((int*)(cmd + 2))].integer);
 		cmd += 2 + sizeof(int);
 		break;
+	case VMC_PUSHR:
+		assert(nullptr != vm->register_data);
+		StkPush(vm->register_data[*((int*)(cmd + 2))]);
+		cmd += 2 + sizeof(int);
+		break;
+
 	case VMC_STACKCLEAR:
 		cmd += 2;
 		break;
+
+	// Set functions
 	case VMC_SETL: {
 		int reg = *((int*)(cmd + 2));
 		stack[frame_pointer + reg].integer = *((int*)(cmd + 2 + sizeof(int)));
 		cmd += 2 + sizeof(int) * 2;
 	}
-		break;
+	break;
+	case VMC_SETR: {
+		assert(nullptr != vm->register_data);
+		int reg = *((int*)(cmd + 2));
+		vm->register_data[reg] = *((int*)(cmd + 2 + sizeof(int)));
+		cmd += 2 + sizeof(int) * 2;
+	}
+	break;
 
+	// Pop functions
+	case VMC_POPL: {
+		int reg = *((int*)(cmd + 2));
+		stack[frame_pointer + reg].integer = StkPop();
+		cmd += 2 + sizeof(int);
+	}
+	break;
+	case VMC_POPR: {
+		assert(nullptr != vm->register_data);
+		int reg = *((int*)(cmd + 2));
+		vm->register_data[frame_pointer + reg] = StkPop();
+		cmd += 2 + sizeof(int);
+	}
+	break;
+
+	// Arithmetic functions (int)
 	case VMC_ADDI: { StkDualOp<int>([](int a, int b) { return a + b; }); cmd += 2; } break;
 	case VMC_SUBI: { StkDualOp<int>([](int a, int b) { return a - b; }); cmd += 2; } break;
 	case VMC_MULI: { StkDualOp<int>([](int a, int b) { return a * b; }); cmd += 2; } break;
@@ -307,7 +342,7 @@ cmd_begin:
 	case VMC_NEGI: { StkSingleOp<int>([](int a) { return -a; }); cmd += 2; } break;
 	case VMC_F2I: { StkF2I(); cmd += 2; } break;
 
-
+	// Arithmetic functions (float)
 	case VMC_ADDF: { StkDualOp<float>([](float a, float b) { return a + b; }); cmd += 2; } break;
 	case VMC_SUBF: { StkDualOp<float>([](float a, float b) { return a - b; }); cmd += 2; } break;
 	case VMC_MULF: { StkDualOp<float>([](float a, float b) { return a * b; }); cmd += 2; } break;
@@ -644,6 +679,11 @@ void PrintFunction() {
 	}
 }
 
+struct test_t {
+	int a;
+	float b;
+} tst;
+
 int main(int argc, char** argv) {
 	if (argc < 1) {
 		printf("Not enough arguments\n");
@@ -665,7 +705,7 @@ int main(int argc, char** argv) {
 		free(data);
 
 		vm_t vm;
-		InitVM(&vm, idata);
+		InitVM(&vm, idata, &tst, nullptr);
 		RunVM(&vm);
 	}
 
