@@ -37,6 +37,9 @@ enum VM_COMMAND {
 	VMC_NOP2, // Do nothing for x frames
 
 	// Stack operations
+	VMC_ENTER, // Move stack base pointer up to new routine
+	VMC_STACKMOVE, // Move stack pointer
+	VMC_LEAVE, // Move stack base pointer down to previous routine
 	VMC_PUSHC, // Push constant
 
 	VMC_PUSHR, // Push register
@@ -57,8 +60,11 @@ enum VM_COMMAND {
 	VMC_DIVI, // r / r
 	VMC_MODI, // r % r
 	VMC_NEGI, // -r
-	VMC_FTOI, // ftoi(r) 
+	VMC_F2I, // ftoi(r) 
 
+	VMC_SETPOS,
+	VMC_MOVEPOS,
+	VMC_MOVEDIR,
 };
 
 union number_t {
@@ -68,7 +74,60 @@ union number_t {
 
 struct command_struct_t {
 	VM_COMMAND cmd;
+	const char* cmd_name;
+	std::vector<number_t> parameters;
+};
 
+struct std::vector<command_struct_t> commands = {
+	{VMC_NOP, "Wait", {} },
+	{VMC_NOP2, "WaitEx", {} },
+
+	{VMC_ENTER, "Enter"},
+	{VMC_STACKMOVE, "StackMove"},
+	{VMC_LEAVE, "Leave"},
+
+	{VMC_PUSHC, "PushC"},
+
+	{VMC_PUSHR, "PushR"},
+	{VMC_PUSHL, "PushL"},
+	{VMC_PUSHG, "PushG"},
+
+	{VMC_POPR, "PopR"},
+	{VMC_POPL, "PopL"},
+	{VMC_POPG, "PopG"},
+
+	{VMC_MOVR, "MovR"},
+	{VMC_MOVL, "MovL"},
+	{VMC_MOVG, "MovG"},
+
+	{VMC_ADDI, "AddI"},
+	{VMC_SUBI, "SubI"},
+	{VMC_MULI, "MulI"},
+	{VMC_DIVI, "DivI"},
+	{VMC_MODI, "ModI"},
+	{VMC_NEGI, "NegI"},
+	{VMC_F2I, "F2I"},
+
+	{VMC_SETPOS, "SetPos"},
+	{VMC_MOVEPOS, "MovePos"},
+	{VMC_MOVEDIR, "MoveDir"},
+};
+
+const int max_stack = 128;
+const int call_depth = 8;
+
+// Virtual machine
+struct vm_t {
+	int* register_data; // A pointer to the registers data
+
+	number_t a, b, c, d; // Acumulator, Base address?, Counter, Data
+
+	int stack[max_stack]; // A stack to do operations in
+	int frame_pointer; // The start of the stack in current call
+	int stack_pointer; // The current size of the stack
+
+	char* call_stack[call_depth]; // A stack to store return addresses
+	int return_pointer; // Where should we go back when returning from call
 };
 
 struct token_t {
@@ -86,7 +145,6 @@ struct subroutine_t {
 std::vector<token_t> tokens;
 std::map<std::string, subroutine_t> function_names;
 const char* name = "test.scpt";
-
 
 constexpr KEYWORDS GetType(const std::string& str) {
 	if (str == "fn") return KW_FUNCTION;
@@ -201,6 +259,14 @@ bool TranformBlockData(size_t* idx) {
 	for (; i < size; ) {
 		switch (tokens[i].token_type) {
 		default: i++; break;
+		case TT_IDENTIFIER: {
+				for (auto& cmd : commands) {
+					if(std::string(cmd.cmd_name) == tokens[i].val)
+						printf("Found %s\n", cmd.cmd_name);
+				}
+				i++;
+			}
+			break;
 		case TT_BRACKET_CLOSE: *idx = i; return true;
 		}
 	}
@@ -210,6 +276,7 @@ bool Transform() {
 	size_t size = tokens.size();
 	bool on_function = false;
 	bool on_parameter_declare = false;
+	std::string func_name = "";
 	subroutine_t subr = { 0 };
 	int next_token = TT_KEYWORD;
 	int next_keyword = KW_FUNCTION;
@@ -229,6 +296,7 @@ bool Transform() {
 				}
 				if (i + 1 < size && tokens[i + 1].token_type == TT_IDENTIFIER) { // Detect an identifier
 					on_function = true;
+					func_name = tokens[i + 1].val;
 					i += 2;
 					next_token = TT_PARENTHESIS_OPEN | TT_BRACKET_OPEN;
 				}
@@ -255,12 +323,15 @@ bool Transform() {
 			i++;
 			if (false == TranformBlockData(&i)) return false;
 			next_token = TT_BRACKET_CLOSE;
+			subr = { 0 };
+
 			break;
 		case TT_BRACKET_CLOSE:
 			next_token = TT_KEYWORD;
 			next_keyword = KW_FUNCTION;
 			on_function = false;
 			i++;
+			function_names.insert({std::move(func_name), std::move(subr)});
 			break;
 		case TT_PARENTHESIS_OPEN:
 			next_token = TT_KEYWORD | TT_PARENTHESIS_CLOSE;
@@ -318,5 +389,10 @@ int main(int argc, char** argv) {
 		case TT_OPERATOR: printf("OPERATOR"); break;
 		}
 		printf("\n");
+	}
+	printf("\n");
+	printf("There are %d functions:\n", function_names.size());
+	for (auto& s : function_names) {
+		printf("Subroutine: %s\n", s.first.c_str());
 	}
 }
