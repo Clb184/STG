@@ -68,6 +68,14 @@ enum VM_COMMAND {
 	VMC_NEGI, // -r
 	VMC_F2I, // ftoi(r) 
 
+	VMC_ADDF, // r + r
+	VMC_SUBF, // r - r
+	VMC_MULF, // r * r
+	VMC_DIVF, // r / r
+	VMC_MODF, // r % r
+	VMC_NEGF, // -r
+	VMC_I2F, // ftoi(r) 
+
 	VMC_SETPOS,
 	VMC_MOVEPOS,
 	VMC_MOVEDIR,
@@ -76,6 +84,21 @@ enum VM_COMMAND {
 union number_t {
 	float real;
 	int integer;
+	void operator=(int i) {
+		integer = i;
+	}
+	void operator=(float i) {
+		real = i;
+	}
+
+	operator float() {
+		return real;
+	}
+
+	operator int() {
+		return integer;
+	}
+
 };
 
 struct command_struct_t {
@@ -118,6 +141,14 @@ struct std::map<const std::string, command_struct_t> commands = {
 	{"NegI",      {VMC_NEGI, 0}},
 	{"F2I",       {VMC_F2I, 0}},
 
+	{"AddF",      {VMC_ADDF, 0}},
+	{"SubF",      {VMC_SUBF, 0}},
+	{"MulF",      {VMC_MULF, 0}},
+	{"DivF",      {VMC_DIVF, 0}},
+	{"ModF",      {VMC_MODF, 0}},
+	{"NegF",      {VMC_NEGF, 0}},
+	{"I2F",       {VMC_I2F, 0}},
+
 	{"SetPos",    {VMC_SETPOS, 2}},
 	{"MovePos",   {VMC_MOVEPOS, 4}},
 	{"MoveDir",   {VMC_MOVEDIR, 3}},
@@ -158,6 +189,43 @@ int StkPop() {
 	return -1;
 }
 
+template<typename T, typename function>
+void StkDualOp(function fn) {
+	int stack_pointer = calc_stack.stack_pointer;
+	if (stack_pointer >= 2) {
+		stack_pointer-= 2;
+		number_t* stack = calc_stack.stack;
+		stack[stack_pointer] = (T)fn((T)stack[stack_pointer], (T)stack[stack_pointer + 1]);
+		calc_stack.stack_pointer = stack_pointer + 1;
+	}
+}
+
+template<typename T, typename function>
+void StkSingleOp(function fn) {
+	int stack_pointer = calc_stack.stack_pointer;
+	if (stack_pointer >= 1) {
+		stack_pointer--;
+		number_t* stack = calc_stack.stack;
+		stack[stack_pointer] = (T)fn((T)stack[stack_pointer]);
+	}
+}
+
+void StkF2I() {
+	int stack_pointer = calc_stack.stack_pointer;
+	if (stack_pointer >= 1) {
+		stack_pointer--;
+		number_t* stack = calc_stack.stack;
+		stack[stack_pointer].integer = stack[stack_pointer].real;
+	}
+}
+
+void StkI2F() {
+	int stack_pointer = calc_stack.stack_pointer;
+	if (stack_pointer >= 1) {
+		stack_pointer--;
+		calc_stack.stack[stack_pointer].real = calc_stack.stack[stack_pointer].integer;
+	}
+}
 
 // Virtual machine
 struct vm_t {
@@ -210,7 +278,6 @@ cmd_begin:
 		break;
 
 	case VMC_ENTER:
-		frame_pointer = stack_pointer;
 		stack_pointer += *((int*)(cmd + 2));
 		cmd += 2 + sizeof(int);
 		break;
@@ -231,21 +298,38 @@ cmd_begin:
 		cmd += 2 + sizeof(int) * 2;
 	}
 		break;
+
+	case VMC_ADDI: { StkDualOp<int>([](int a, int b) { return a + b; }); cmd += 2; } break;
+	case VMC_SUBI: { StkDualOp<int>([](int a, int b) { return a - b; }); cmd += 2; } break;
+	case VMC_MULI: { StkDualOp<int>([](int a, int b) { return a * b; }); cmd += 2; } break;
+	case VMC_DIVI: { StkDualOp<int>([](int a, int b) { return a / b; }); cmd += 2; } break;
+	case VMC_MODI: { StkDualOp<int>([](int a, int b) { return a % b; }); cmd += 2; } break;
+	case VMC_NEGI: { StkSingleOp<int>([](int a) { return -a; }); cmd += 2; } break;
+	case VMC_F2I: { StkF2I(); cmd += 2; } break;
+
+
+	case VMC_ADDF: { StkDualOp<float>([](float a, float b) { return a + b; }); cmd += 2; } break;
+	case VMC_SUBF: { StkDualOp<float>([](float a, float b) { return a - b; }); cmd += 2; } break;
+	case VMC_MULF: { StkDualOp<float>([](float a, float b) { return a * b; }); cmd += 2; } break;
+	case VMC_DIVF: { StkDualOp<float>([](float a, float b) { return a / b; }); cmd += 2; } break;
+	case VMC_MODF: { StkDualOp<float>([](float a, float b) { return fmodf(a, b); }); cmd += 2; } break;
+	case VMC_NEGF: { StkSingleOp<float>([](float a) { return -a; }); cmd += 2; } break;
+	case VMC_I2F: { StkI2F(); cmd += 2; } break;
+
+
 	case VMC_SETPOS: {
 		int p1 = StkPop(), p2 = StkPop();
 		number_t x, y;
 		x.integer = StkPop();
 		y.integer = StkPop();
-		cmd += 2 + sizeof(int) * 2;
+		cmd += 2;
 	}
 		break;
 	case VMC_MOVEPOS: {
-		int p1 = *((int*)(cmd + 2)), p2 = *((int*)(cmd + 2 + sizeof(int))), p3 = *((int*)(cmd + 2 + 2 * sizeof(int))), p4 = *((int*)(cmd + 2 + 3 *sizeof(int)));
-		int time = stack[frame_pointer + p1].integer;
-		int mode = stack[frame_pointer + p2].integer;
-		int final_x = stack[frame_pointer + p3].real;
-		int final_y = stack[frame_pointer + p4].real;
-		cmd += 2 + sizeof(int) * 4;
+		int time = StkPop(), mode = StkPop(); number_t final_x, final_y;
+		final_x = StkPop();
+		final_y = StkPop();
+		cmd += 2;
 	}
 		break;
 	}
