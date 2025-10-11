@@ -169,22 +169,26 @@ void StkInitialize() {
 }
 
 void StkPush(int val) {
-	if (calc_stack.stack_pointer < max_calcstack) {
+	bool on_level = calc_stack.stack_pointer < max_calcstack;
+	if (on_level) {
 		calc_stack.stack[calc_stack.stack_pointer].integer = val;
 		calc_stack.stack_pointer++;
 	}
 	else {
 		printf("Stack Overflow\n");
+		assert(on_level);
 	}
 }
 
 int StkPop() {
-	if (calc_stack.stack_pointer > 0) {
+	bool on_level = calc_stack.stack_pointer > 0;
+	if (on_level) {
 		calc_stack.stack_pointer--;
 		return calc_stack.stack[calc_stack.stack_pointer].integer;
 	}
 	else {
 		printf("Stack Underflow\n");
+		assert(on_level);
 	}
 	return -1;
 }
@@ -196,7 +200,7 @@ void StkDualOp(function fn) {
 		stack_pointer-= 2;
 		number_t* stack = calc_stack.stack;
 		stack[stack_pointer] = (T)fn((T)stack[stack_pointer], (T)stack[stack_pointer + 1]);
-		calc_stack.stack_pointer = stack_pointer + 1;
+		calc_stack.stack_pointer--;
 	}
 }
 
@@ -374,10 +378,7 @@ cmd_begin:
 
 
 	case VMC_SETPOS: {
-		int p1 = StkPop(), p2 = StkPop();
-		number_t x, y;
-		x.integer = StkPop();
-		y.integer = StkPop();
+		float p1 = StkPop(), p2 = StkPop();
 		cmd += 2;
 	}
 		break;
@@ -414,7 +415,7 @@ struct token_size_t {
 };
 
 struct subroutine_t {
-	int size;
+	size_t size;
 };
 
 std::vector<token_t> tokens;
@@ -529,9 +530,13 @@ bool Tokenize(char* data) {
 	return true;
 }
 
-bool TranformBlockData(size_t* idx) {
+bool TranformBlockData(size_t* idx, size_t* codesz) {
+	assert(nullptr != idx);
+	assert(nullptr != codesz);
+
 	size_t size = tokens.size();
 	size_t i = *idx;
+	size_t code_size = 0;
 	for (; i < size; ) {
 		const token_t& tok = tokens[i];
 		switch (tok.token_type) {
@@ -543,12 +548,14 @@ bool TranformBlockData(size_t* idx) {
 				out_tokens.push_back({cmd_val, 2});
 			}
 			i++;
+			code_size++;
 			break;
 		case TT_INT: {
 			int val = std::stol(tok.val);
 			printf("Int value %d\n", val);
 			out_tokens.push_back({ val, 4 });
 			i++;
+			code_size++;
 		} break;
 		case TT_FLOAT: {
 			number_t val;
@@ -556,10 +563,15 @@ bool TranformBlockData(size_t* idx) {
 			printf("Float value %f\n", val.real);
 			out_tokens.push_back({ val.integer, 4 });
 			i++;
+			code_size++;
 		} break;
-		case TT_BRACKET_CLOSE: *idx = i; return true;
+		case TT_BRACKET_CLOSE:
+			*idx = i; 
+			*codesz += code_size;
+			return true;
 		}
 	}
+	
 }
 
 bool Transform() {
@@ -570,6 +582,7 @@ bool Transform() {
 	subroutine_t subr = { 0 };
 	int next_token = TT_KEYWORD;
 	int next_keyword = KW_FUNCTION;
+	size_t code_size = 0;
 	for (size_t i = 0; i < size; ) {
 		if (!(next_token & tokens[i].token_type)) {
 			ERROR_EXIT("This token was not expected at this time\n");
@@ -611,7 +624,11 @@ bool Transform() {
 			break;
 		case TT_BRACKET_OPEN:
 			i++;
-			if (false == TranformBlockData(&i)) return false;
+			if (false == TranformBlockData(&i, &subr.size)) return false;
+			while (subr.size % 4) {
+				subr.size++; // Pad with zeros for allignment
+			}
+
 			next_token = TT_BRACKET_CLOSE;
 			subr = { 0 };
 
