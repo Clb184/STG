@@ -414,13 +414,25 @@ struct token_size_t {
 	int size;
 };
 
-struct subroutine_t {
-	size_t size;
+// 
+struct symbol_mention_t {
+	int value;
+	std::vector<int> references;
 };
+
+struct subroutine_data_t {
+	size_t size;
+	size_t offset_begin;
+	int tok_begin;
+	int tok_end;
+	symbol_mention_t label_mention;
+};
+
+std::map<const std::string, symbol_mention_t> function_table;
 
 std::vector<token_t> tokens;
 std::vector<token_size_t> out_tokens;
-std::map<std::string, subroutine_t> function_names;
+std::map<std::string, subroutine_data_t> functions;
 const char* name = "test.scpt";
 
 constexpr KEYWORDS GetType(const std::string& str) {
@@ -574,15 +586,19 @@ bool TranformBlockData(size_t* idx, size_t* codesz) {
 	
 }
 
+size_t out_file_size = 0;
+
 bool Transform() {
 	size_t size = tokens.size();
 	bool on_function = false;
 	bool on_parameter_declare = false;
 	std::string func_name = "";
-	subroutine_t subr = { 0 };
+	subroutine_data_t subr = { 0 };
 	int next_token = TT_KEYWORD;
 	int next_keyword = KW_FUNCTION;
 	size_t code_size = 0;
+	size_t tok_pos = 0;
+	size_t offset_begin = 0;
 	for (size_t i = 0; i < size; ) {
 		if (!(next_token & tokens[i].token_type)) {
 			ERROR_EXIT("This token was not expected at this time\n");
@@ -600,6 +616,9 @@ bool Transform() {
 				if (i + 1 < size && (tokens[i + 1].token_type & TT_IDENTIFIER)) { // Detect an identifier
 					on_function = true;
 					func_name = tokens[i + 1].val;
+					if (function_table.find(func_name) != function_table.end()) {
+						ERROR_EXIT("Can't repeat a function name");
+					};
 					i += 2;
 					next_token = TT_PARENTHESIS_OPEN | TT_BRACKET_OPEN;
 				}
@@ -624,13 +643,17 @@ bool Transform() {
 			break;
 		case TT_BRACKET_OPEN:
 			i++;
+			subr.offset_begin = out_file_size;
+			subr.tok_begin = tok_pos;
 			if (false == TranformBlockData(&i, &subr.size)) return false;
+			tok_pos += subr.size;
+			subr.tok_end = tok_pos;
 			while (subr.size % 4) {
 				subr.size++; // Pad with zeros for allignment
 			}
-
+			out_file_size += subr.size;
+			
 			next_token = TT_BRACKET_CLOSE;
-			subr = { 0 };
 
 			break;
 		case TT_BRACKET_CLOSE:
@@ -638,7 +661,8 @@ bool Transform() {
 			next_keyword = KW_FUNCTION;
 			on_function = false;
 			i++;
-			function_names.insert({std::move(func_name), std::move(subr)});
+			functions.insert({std::move(func_name), std::move(subr)});
+			memset(&subr, 0, sizeof(subroutine_data_t));
 			break;
 		case TT_PARENTHESIS_OPEN:
 			next_token = TT_KEYWORD | TT_PARENTHESIS_CLOSE;
@@ -664,29 +688,30 @@ char* idata = nullptr;
 size_t isize = 0;
 
 void Token2Data() {
-	char* data = (char*)calloc(out_tokens.size(), sizeof(int));
+	char* data = (char*)calloc(out_file_size + 2, sizeof(int));
 	char* offset = data;
-	size_t size = 0;
-	for (auto& t: out_tokens) {
-		switch (t.size) {
-		case 2:
-			*((int16_t*)offset) = (int16_t)t.value;
-			offset += sizeof(int16_t);
-			size += sizeof(int16_t);
-			break;
-		case 4:
-			*((int*)offset) = t.value;
-			offset += sizeof(int);
-			size += sizeof(int);
-			break;
-		default:
-			break;
+	data[out_file_size] = 0xff;
+	data[out_file_size + 1] = 0xff;
+	for (auto& t: functions) {
+		size_t begin = t.second.tok_begin;
+		size_t end = t.second.tok_end;
+		offset = data + t.second.offset_begin;
+		for (int i = begin; i < end; i++) {
+			switch (out_tokens[i].size) {
+			case 2:
+				*((int16_t*)offset) = (int16_t)out_tokens[i].value;
+				offset += sizeof(int16_t);
+				break;
+			case 4:
+				*((int*)offset) = out_tokens[i].value;
+				offset += sizeof(int);
+				break;
+			default:
+				break;
+			}
 		}
 	}
-	idata = (char*)calloc(size + 1, sizeof(char));
-	memcpy(idata, data, size);
-	free(data);
-	isize = size;
+	idata = data;
 }
 
 void PrintTokens() {
@@ -711,8 +736,8 @@ void PrintTokens() {
 }
 
 void PrintFunction() {
-	printf("There are %d functions:\n", function_names.size());
-	for (auto& s : function_names) {
+	printf("There are %d functions:\n", functions.size());
+	for (auto& s : functions) {
 		printf("Subroutine: %s\n", s.first.c_str());
 	}
 }
