@@ -583,11 +583,29 @@ bool TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, const s
 	size_t i = *idx;
 	size_t code_size = 0;
 	size_t offset_f = *offset_file;
+	int expected_keyword = KW_FLOAT | KW_INT;
 	int func_call_depth = 0;
 	for (; i < size; ) {
 		const token_t& tok = tokens[i];
 		switch (tok.token_type) {
 		default: i++; break;
+		case TT_KEYWORD: {
+			if (expected_keyword & tok.keyword_id) {
+				switch (tok.keyword_id) {
+				case KW_FLOAT:
+				case KW_INT:
+					if (i + 1 < size && tokens[i + 1].token_type == TT_IDENTIFIER) {
+
+					}
+					break;
+				}
+			}
+			else {
+				ERROR_EXIT("This keyword was not expected");
+			}
+
+		}
+			break;
 		case TT_IDENTIFIER:
 			if (commands.find(tok.val) != commands.end()) { // Your usual command
 				int cmd_val = commands[tok.val].cmd;
