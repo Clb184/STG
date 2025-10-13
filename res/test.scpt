@@ -29,10 +29,11 @@ fn main {
 	PushC(23)
 	AddI()
 	PopR(0)
-
+	
+	Call(func)
 	Kill()
 }
 
-fn func(int a) {
+fn func(int a, int b, float c) {
 
 }

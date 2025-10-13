@@ -19,6 +19,7 @@ enum TK_TYPE {
 	TT_COMMA = 1 << 7,
 	TT_IDENTIFIER = 1 << 8,
 	TT_OPERATOR = 1 << 9,
+	TT_COLON = 1 << 10,
 };
 
 enum KEYWORDS {
@@ -270,6 +271,7 @@ void RunVM(vm_t* vm) {
 
 	// Commands
 	char* cmd = vm->command_data;
+	assert(nullptr != cmd);
 cmd_begin:
 	switch (*(uint16_t*)cmd) {
 	case VMC_NOP:
@@ -280,7 +282,26 @@ cmd_begin:
 		cmd += 2;
 	}
 		break;
-
+	case VMC_CALL:
+		if (vm->return_pointer < 8) {
+			vm->call_stack[vm->return_pointer++] = cmd + 2 + sizeof(int);
+			cmd = vm->command_data + *((int*)(cmd + 2));
+		}
+		else {
+			// A CallStack overflow has happened
+			goto cmd_error;
+		}
+		break;
+	case VMC_RETURN:
+		if (vm->return_pointer > 0) {
+			cmd = vm->call_stack[vm->return_pointer - 1];
+			vm->return_pointer--;
+		}
+		else {
+			// In this case, just halt the VM and act as kill 
+			goto cmd_exit;
+		}
+		break;
 	case VMC_KILL:
 		goto cmd_exit;
 		break;
@@ -414,21 +435,33 @@ struct token_size_t {
 	int size;
 };
 
-// 
-struct symbol_mention_t {
-	int value;
-	std::vector<int> references;
-};
 
 struct subroutine_data_t {
 	size_t size;
 	size_t offset_begin;
 	int tok_begin;
 	int tok_end;
-	symbol_mention_t label_mention;
 };
 
-std::map<const std::string, symbol_mention_t> function_table;
+// How does this work?
+// Just adds the function name + its value and references to it
+// Labels are also symbols, however, they internally are 'label'@'function',
+// since you can't use @ in normal syntax
+enum SYMBOL_TYPE{
+	ST_FUNCTION,
+	ST_LOCAL,
+	ST_LABEL,
+	ST_CONSTANT,
+};
+
+struct symbol_mention_t {
+	int value;
+	SYMBOL_TYPE type;
+	int type_desc;
+	std::vector<int> references;
+};
+
+std::map<const std::string, symbol_mention_t> symbol_map;
 
 std::vector<token_t> tokens;
 std::vector<token_size_t> out_tokens;
@@ -542,22 +575,31 @@ bool Tokenize(char* data) {
 	return true;
 }
 
-bool TranformBlockData(size_t* idx, size_t* codesz) {
+bool TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, const std::string& function_name, int enter_size) {
 	assert(nullptr != idx);
 	assert(nullptr != codesz);
 
 	size_t size = tokens.size();
 	size_t i = *idx;
 	size_t code_size = 0;
+	size_t offset_f = *offset_file;
+	int func_call_depth = 0;
 	for (; i < size; ) {
 		const token_t& tok = tokens[i];
 		switch (tok.token_type) {
 		default: i++; break;
 		case TT_IDENTIFIER:
-			if (commands.find(tok.val) != commands.end()) {
+			if (commands.find(tok.val) != commands.end()) { // Your usual command
 				int cmd_val = commands[tok.val].cmd;
 				printf("Found %s (0x%x)\n", tok.val.c_str(), cmd_val);
-				out_tokens.push_back({cmd_val, 2});
+				out_tokens.push_back({ cmd_val, 2 });
+				offset_f += 2;
+			}
+			else {
+				printf("Found identifier %s\n", tok.val.c_str());
+				symbol_map[tok.val].references.push_back(offset_f);
+				out_tokens.push_back({ 0, 4 });
+				offset_f += 4;
 			}
 			i++;
 			code_size++;
@@ -568,6 +610,7 @@ bool TranformBlockData(size_t* idx, size_t* codesz) {
 			out_tokens.push_back({ val, 4 });
 			i++;
 			code_size++;
+			offset_f += 4;
 		} break;
 		case TT_FLOAT: {
 			number_t val;
@@ -576,10 +619,12 @@ bool TranformBlockData(size_t* idx, size_t* codesz) {
 			out_tokens.push_back({ val.integer, 4 });
 			i++;
 			code_size++;
+			offset_f += 4;
 		} break;
 		case TT_BRACKET_CLOSE:
-			*idx = i; 
-			*codesz += code_size;
+			*idx = i; // Tokenized index
+			*codesz += code_size; // Position in tokens
+			*offset_file = offset_f; // Real position in file
 			return true;
 		}
 	}
@@ -599,6 +644,7 @@ bool Transform() {
 	size_t code_size = 0;
 	size_t tok_pos = 0;
 	size_t offset_begin = 0;
+	int enter_size = 0;
 	for (size_t i = 0; i < size; ) {
 		if (!(next_token & tokens[i].token_type)) {
 			ERROR_EXIT("This token was not expected at this time\n");
@@ -616,9 +662,13 @@ bool Transform() {
 				if (i + 1 < size && (tokens[i + 1].token_type & TT_IDENTIFIER)) { // Detect an identifier
 					on_function = true;
 					func_name = tokens[i + 1].val;
-					if (function_table.find(func_name) != function_table.end()) {
+					// Check if is not repeating function name
+					if (functions.find(func_name) != functions.end()) {
 						ERROR_EXIT("Can't repeat a function name");
 					};
+					// Then add reference
+					symbol_map[func_name].type = ST_FUNCTION;
+					symbol_map[func_name].value = out_file_size;
 					i += 2;
 					next_token = TT_PARENTHESIS_OPEN | TT_BRACKET_OPEN;
 				}
@@ -627,6 +677,11 @@ bool Transform() {
 			case KW_FLOAT:
 				if (on_parameter_declare) {
 					if (i + 1 < size && (tokens[i + 1].token_type & TT_IDENTIFIER)) {
+						// Then add reference
+						const std::string& val = tokens[i + 1].val + "@" + func_name;
+						symbol_map[val].type = ST_LOCAL;
+						symbol_map[val].value = enter_size++;
+						symbol_map[val].type_desc = (tokens[i].keyword_id == KW_INT) ? KW_INT : KW_FLOAT;
 						next_token = TT_COMMA | TT_PARENTHESIS_CLOSE;
 						i += 2;
 					}
@@ -645,13 +700,22 @@ bool Transform() {
 			i++;
 			subr.offset_begin = out_file_size;
 			subr.tok_begin = tok_pos;
-			if (false == TranformBlockData(&i, &subr.size)) return false;
-			tok_pos += subr.size;
-			subr.tok_end = tok_pos;
-			while (subr.size % 4) {
-				subr.size++; // Pad with zeros for allignment
+			if (enter_size) {
+				// Add if there are any variables declared
+				out_tokens.push_back({ VMC_ENTER, 2 });
+				out_tokens.push_back({ enter_size, 4 });
+				tok_pos += 2;
+				out_file_size += 2 + 4;
 			}
-			out_file_size += subr.size;
+			if (false == TranformBlockData(&i, &subr.size, &out_file_size, func_name, enter_size)) return false;
+			tok_pos += subr.size + 1;
+			out_tokens.push_back({VMC_RETURN, 2});
+			out_file_size += 2;
+
+			subr.tok_end = tok_pos;
+			while (out_file_size % 4) {
+				out_file_size++; // Pad with zeros for allignment
+			}
 			
 			next_token = TT_BRACKET_CLOSE;
 
@@ -660,6 +724,7 @@ bool Transform() {
 			next_token = TT_KEYWORD;
 			next_keyword = KW_FUNCTION;
 			on_function = false;
+			enter_size = 0;
 			i++;
 			functions.insert({std::move(func_name), std::move(subr)});
 			memset(&subr, 0, sizeof(subroutine_data_t));
@@ -673,6 +738,11 @@ bool Transform() {
 		case TT_PARENTHESIS_CLOSE:
 			next_token = TT_BRACKET_OPEN;
 			on_parameter_declare = false;
+			i++;
+			break;
+		case TT_COMMA:
+			next_token = TT_KEYWORD;
+			next_keyword = KW_FLOAT | KW_INT;
 			i++;
 			break;
 		default:
@@ -714,6 +784,15 @@ void Token2Data() {
 	idata = data;
 }
 
+void PutSymbols() {
+	for (auto& s : symbol_map) {
+		int value = s.second.value;
+		for (auto& o : s.second.references) {
+			*(int*)(idata + o) = value;
+		}
+	}
+}
+
 void PrintTokens() {
 	printf("There are %d tokens:\n", tokens.size());
 	for (auto& s : tokens) {
@@ -729,6 +808,7 @@ void PrintTokens() {
 		case TT_COMMA: printf("COMMA"); break;
 		case TT_IDENTIFIER: printf("IDENTIFIER"); break;
 		case TT_OPERATOR: printf("OPERATOR"); break;
+		case TT_COLON: printf("COLON"); break;
 		}
 		printf("\n");
 	}
@@ -763,6 +843,7 @@ int main(int argc, char** argv) {
 		if (Tokenize(data)) {
 			if (Transform()) {
 				Token2Data();
+				PutSymbols();
 			}
 		}
 		free(data);
