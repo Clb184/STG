@@ -43,9 +43,10 @@ enum VM_COMMAND {
 	VMC_KILL, // Kill the object related to the VM
 
 	// Stack operations
-	VMC_ENTER, // Move stack base pointer up to new routine
-	VMC_STACKMOVE, // Move stack pointer
-	VMC_LEAVE, // Move stack base pointer down to previous routine
+	VMC_LALLOC, // Allocate space for 
+	VMC_ENTER, // Prepare local space for call
+	VMC_LEAVE, // Delete arguments for calls
+
 	VMC_PUSHC, // Push constant
 	VMC_STACKCLEAR, // Clear the stack
 
@@ -115,9 +116,9 @@ struct std::map<const std::string, command_struct_t> commands = {
 	{"Return",    {VMC_RETURN, 0}},
 	{"Kill",      {VMC_KILL, 0}},
 
-	{"Enter",     {VMC_ENTER, 1}},
-	{"StackMove", {VMC_STACKMOVE, 1}},
-	{"Leave",     {VMC_LEAVE, }},
+	{"LAlloc",     {VMC_LALLOC, 1}},
+	{"Enter",		{VMC_ENTER, 1}},
+	{"Leave",		{VMC_LEAVE, }},
 
 	{"PushC",     {VMC_PUSHC, 1}},
 	{"StackClear",  {VMC_STACKCLEAR, 1}},
@@ -306,7 +307,7 @@ cmd_begin:
 		goto cmd_exit;
 		break;
 
-	case VMC_ENTER:
+	case VMC_LALLOC:
 		stack_pointer += *((int*)(cmd + 2));
 		cmd += 2 + sizeof(int);
 		break;
@@ -575,9 +576,10 @@ bool Tokenize(char* data) {
 	return true;
 }
 
-bool TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, const std::string& function_name, int enter_size) {
+bool _cdecl TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, const std::string& function_name, int* argc) {
 	assert(nullptr != idx);
 	assert(nullptr != codesz);
+	assert(nullptr != argc);
 
 	size_t size = tokens.size();
 	size_t i = *idx;
@@ -585,6 +587,7 @@ bool TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, const s
 	size_t offset_f = *offset_file;
 	int expected_keyword = KW_FLOAT | KW_INT;
 	int func_call_depth = 0;
+	int args = *argc;
 	for (; i < size; ) {
 		const token_t& tok = tokens[i];
 		switch (tok.token_type) {
@@ -595,7 +598,12 @@ bool TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, const s
 				case KW_FLOAT:
 				case KW_INT:
 					if (i + 1 < size && tokens[i + 1].token_type == TT_IDENTIFIER) {
-
+						std::string local_name = tokens[i + 1].val + "@" + function_name;
+						symbol_map[local_name].type = ST_LOCAL;
+						symbol_map[local_name].type_desc = tokens[i + 1].keyword_id;
+						symbol_map[local_name].value = args;
+						args++;
+						i += 2;
 					}
 					break;
 				}
@@ -614,8 +622,9 @@ bool TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, const s
 				offset_f += 2;
 			}
 			else {
+
 				printf("Found identifier %s\n", tok.val.c_str());
-				symbol_map[tok.val].references.push_back(offset_f);
+				symbol_map[tok.val + "@" + function_name].references.push_back(offset_f);
 				out_tokens.push_back({ 0, 4 });
 				offset_f += 4;
 			}
@@ -643,6 +652,7 @@ bool TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, const s
 			*idx = i; // Tokenized index
 			*codesz += code_size; // Position in tokens
 			*offset_file = offset_f; // Real position in file
+			*argc = args;
 			return true;
 		}
 	}
@@ -718,15 +728,12 @@ bool Transform() {
 			i++;
 			subr.offset_begin = out_file_size;
 			subr.tok_begin = tok_pos;
-			if (enter_size) {
-				// Add if there are any variables declared
-				out_tokens.push_back({ VMC_ENTER, 2 });
-				out_tokens.push_back({ enter_size, 4 });
-				tok_pos += 2;
-				out_file_size += 2 + 4;
-			}
-			if (false == TranformBlockData(&i, &subr.size, &out_file_size, func_name, enter_size)) return false;
-			tok_pos += subr.size + 1;
+			// Add if there are any variables declared
+			out_file_size += 2 + 4;
+			if (false == TranformBlockData(&i, &subr.size, &out_file_size, func_name, &enter_size)) return false;
+			out_tokens.insert(out_tokens.begin() + subr.tok_begin, { enter_size, 4 });
+			out_tokens.insert(out_tokens.begin() + subr.tok_begin, { VMC_LALLOC, 2 });
+			tok_pos += subr.size + 1 + 2;
 			out_tokens.push_back({VMC_RETURN, 2});
 			out_file_size += 2;
 
@@ -781,6 +788,7 @@ void Token2Data() {
 	data[out_file_size] = 0xff;
 	data[out_file_size + 1] = 0xff;
 	for (auto& t: functions) {
+		printf("%s:\n", t.first.c_str());
 		size_t begin = t.second.tok_begin;
 		size_t end = t.second.tok_end;
 		offset = data + t.second.offset_begin;
@@ -788,16 +796,19 @@ void Token2Data() {
 			switch (out_tokens[i].size) {
 			case 2:
 				*((int16_t*)offset) = (int16_t)out_tokens[i].value;
+				printf("\n\t%d  ", *(int16_t*)offset);
 				offset += sizeof(int16_t);
 				break;
 			case 4:
 				*((int*)offset) = out_tokens[i].value;
+				printf("%d, ", *(int*)offset);
 				offset += sizeof(int);
 				break;
 			default:
 				break;
 			}
 		}
+		printf("\n");
 	}
 	idata = data;
 }

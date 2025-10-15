@@ -1,0 +1,47 @@
+num_locals = 3
+base -> 0	x  0.0
+	1	y  100.0
+	2	z  10.0
+	3	23
+	4	46
+stack->	5	
+
+To create local variables, use the Enter() instruction
+This will increase the stack pointer by the input
+
+Enter() fails when there's no more room for locals (Max 128)
+PushX() fails as well by the situation mentioned above
+
+------------------------------------------------------------------------
+
+When using a command or calling a function, use stack indexes as inputs
+
+Function(0 -> x, 3 -> 23 (Not local), ...)
+
+Calls work like:
+
+func1 > 0 x 1
+	1 y 30
+	2 z 40
+	3 23
+	4 46
+	5 base_old
+func2 > 6 w 20		base   
+	7 50		
+	6		stack
+
+When using Enter(), the old base is pushed and the frame pointer is equal
+to the stack pointer
+
+func1 > 0 x 1		base
+	1 y 30
+	2 z 40
+	3 23
+	4 46
+	5 base_old	stack
+	6 w 20		   
+	7 50		
+	6		
+
+
+

@@ -1,0 +1,7 @@
+instruction size = 2 bytes
+
+move time (sec), x, y, type
+movedir time (sec), dir, speed
+movediracc time (sec), dir, speed, accel
+movedirrol time (sec), idir, delta_dir, speed
+wait time (sec)
