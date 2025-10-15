@@ -18,9 +18,18 @@ fn main {
 	MovePos()
 
 	Nop()
+	PushC(30.0)
+	PushC(20)
+	PushC(10)
+	Enter(3)
+	Call(func)
+	Leave()
 	Kill()
 }
 
 fn func(int a, int b, float c) {
+	SetL(a, 30)
+	SetL(b, 50)
+	SetL(c, 120.0)
 
 }

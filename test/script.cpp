@@ -282,7 +282,7 @@ cmd_begin:
 		int wait = StkPop();
 		cmd += 2;
 	}
-		break;
+				 break;
 	case VMC_CALL:
 		if (vm->return_pointer < 8) {
 			vm->call_stack[vm->return_pointer++] = cmd + 2 + sizeof(int);
@@ -310,6 +310,23 @@ cmd_begin:
 	case VMC_LALLOC:
 		stack_pointer += *((int*)(cmd + 2));
 		cmd += 2 + sizeof(int);
+		break;
+
+	case VMC_ENTER: {
+		stack[stack_pointer++] = frame_pointer;
+		frame_pointer = stack_pointer;
+		int regs = *((int*)(cmd + 2));
+		stack_pointer += regs;
+		for (int i = 0; i < regs; i++) {
+			stack[frame_pointer + i] = StkPop();
+		}
+		cmd += 2 + sizeof(int);
+	}
+		break;
+	case VMC_LEAVE: 
+		stack_pointer = frame_pointer;
+		frame_pointer = stack[frame_pointer - 1];
+		cmd += 2;
 		break;
 
 	// Push operations
@@ -434,6 +451,7 @@ struct token_t {
 struct token_size_t {
 	int value;
 	int size;
+	int extra_info;
 };
 
 
@@ -442,6 +460,7 @@ struct subroutine_data_t {
 	size_t offset_begin;
 	int tok_begin;
 	int tok_end;
+	int num_args;
 };
 
 // How does this work?
@@ -585,15 +604,17 @@ bool _cdecl TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, 
 	size_t i = *idx;
 	size_t code_size = 0;
 	size_t offset_f = *offset_file;
-	int expected_keyword = KW_FLOAT | KW_INT;
+	int next_type = TT_KEYWORD | TT_IDENTIFIER;
+	int next_keyword = KW_FLOAT | KW_INT;
 	int func_call_depth = 0;
 	int args = *argc;
+	bool next_global = false;
 	for (; i < size; ) {
 		const token_t& tok = tokens[i];
 		switch (tok.token_type) {
 		default: i++; break;
 		case TT_KEYWORD: {
-			if (expected_keyword & tok.keyword_id) {
+			if (next_keyword & tok.keyword_id) {
 				switch (tok.keyword_id) {
 				case KW_FLOAT:
 				case KW_INT:
@@ -604,6 +625,8 @@ bool _cdecl TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, 
 						symbol_map[local_name].value = args;
 						args++;
 						i += 2;
+						next_type = TT_KEYWORD | TT_IDENTIFIER; 
+						next_keyword = KW_FLOAT | KW_INT;
 					}
 					break;
 				}
@@ -618,14 +641,25 @@ bool _cdecl TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, 
 			if (commands.find(tok.val) != commands.end()) { // Your usual command
 				int cmd_val = commands[tok.val].cmd;
 				printf("Found %s (0x%x)\n", tok.val.c_str(), cmd_val);
-				out_tokens.push_back({ cmd_val, 2 });
+				out_tokens.push_back({ cmd_val, 2, 0 });
 				offset_f += 2;
+				if (cmd_val == VMC_CALL) {
+					next_global = true;
+				}
 			}
 			else {
-
+				std::string ident = "";
+				if (next_global) {
+					// Maybe is call
+					ident = tok.val;
+					next_global = false;
+				}
+				else {
+					ident = tok.val + "@" + function_name;
+				}
 				printf("Found identifier %s\n", tok.val.c_str());
-				symbol_map[tok.val + "@" + function_name].references.push_back(offset_f);
-				out_tokens.push_back({ 0, 4 });
+				symbol_map[ident].references.push_back(offset_f);
+				out_tokens.push_back({ 0, 4, 0 });
 				offset_f += 4;
 			}
 			i++;
@@ -634,7 +668,7 @@ bool _cdecl TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, 
 		case TT_INT: {
 			int val = std::stol(tok.val);
 			printf("Int value %d\n", val);
-			out_tokens.push_back({ val, 4 });
+			out_tokens.push_back({ val, 4, 0 });
 			i++;
 			code_size++;
 			offset_f += 4;
@@ -643,7 +677,7 @@ bool _cdecl TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, 
 			number_t val;
 			val.real = std::stod(tok.val);
 			printf("Float value %f\n", val.real);
-			out_tokens.push_back({ val.integer, 4 });
+			out_tokens.push_back({ val.integer, 4, 0 });
 			i++;
 			code_size++;
 			offset_f += 4;
@@ -673,6 +707,7 @@ bool Transform() {
 	size_t tok_pos = 0;
 	size_t offset_begin = 0;
 	int enter_size = 0;
+	int num_args = 0;
 	for (size_t i = 0; i < size; ) {
 		if (!(next_token & tokens[i].token_type)) {
 			ERROR_EXIT("This token was not expected at this time\n");
@@ -710,6 +745,7 @@ bool Transform() {
 						symbol_map[val].type = ST_LOCAL;
 						symbol_map[val].value = enter_size++;
 						symbol_map[val].type_desc = (tokens[i].keyword_id == KW_INT) ? KW_INT : KW_FLOAT;
+						num_args++;
 						next_token = TT_COMMA | TT_PARENTHESIS_CLOSE;
 						i += 2;
 					}
@@ -728,13 +764,14 @@ bool Transform() {
 			i++;
 			subr.offset_begin = out_file_size;
 			subr.tok_begin = tok_pos;
+			subr.num_args = num_args;
 			// Add if there are any variables declared
 			out_file_size += 2 + 4;
 			if (false == TranformBlockData(&i, &subr.size, &out_file_size, func_name, &enter_size)) return false;
-			out_tokens.insert(out_tokens.begin() + subr.tok_begin, { enter_size, 4 });
-			out_tokens.insert(out_tokens.begin() + subr.tok_begin, { VMC_LALLOC, 2 });
+			out_tokens.insert(out_tokens.begin() + subr.tok_begin, { enter_size - num_args, 4, 0 });
+			out_tokens.insert(out_tokens.begin() + subr.tok_begin, { VMC_LALLOC, 2, 0 });
 			tok_pos += subr.size + 1 + 2;
-			out_tokens.push_back({VMC_RETURN, 2});
+			out_tokens.push_back({VMC_RETURN, 2, 0});
 			out_file_size += 2;
 
 			subr.tok_end = tok_pos;
