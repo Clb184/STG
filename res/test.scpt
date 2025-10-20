@@ -1,3 +1,4 @@
+proc func(int a, int b, float c)
 
 proc main {
 	int a, b
@@ -8,11 +9,11 @@ proc main {
 
 	movepos(80, 1, 500.0, 200.0)
 
-	nop
+	nop()
 	func(10, 20, 30.0)
-	printstack
-	printlocals
-	kill
+	printstack()
+	printlocals()
+	kill()
 }
 
 proc func(int a, int b, float c) {
@@ -22,14 +23,14 @@ proc func(int a, int b, float c) {
 
 	pushl(c)
 	pushl(a)
-	i2f
-	mulf
-	subf
+	i2f()
+	mulf()
+	subf()
 	popr(1)
 
 	pushr(1)
-	f2i
+	f2i()
 	popr(0)
 
-	printlocals
+	printlocals()
 }

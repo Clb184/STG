@@ -328,7 +328,7 @@ cmd_begin:
 		frame_pointer = stack_pointer;
 		int regs = *((int*)(cmd + 2));
 		stack_pointer += regs;
-		for (int i = 0; i < regs; i++) {
+		for (int i = regs - 1; i >= 0; i--) {
 			stack[frame_pointer + i] = StkPop();
 		}
 		cmd += 2 + sizeof(int);
@@ -428,14 +428,18 @@ cmd_begin:
 
 
 	case VMC_SETPOS: {
-		float p1 = StkPop(), p2 = StkPop();
+		number_t x, y;
+		y = StkPop();
+		x = StkPop();
 		cmd += 2;
 	}
 		break;
 	case VMC_MOVEPOS: {
-		int time = StkPop(), mode = StkPop(); number_t final_x, final_y;
-		final_x = StkPop();
+		number_t time, mode, final_x, final_y;
 		final_y = StkPop();
+		final_x = StkPop();
+		mode = StkPop();
+		time = StkPop();
 		cmd += 2;
 	}
 		break;
@@ -445,7 +449,7 @@ cmd_begin:
 		for (int i = 0; i < calc_stack.stack_pointer; i++) {
 			number_t num = calc_stack.stack[i];
 			printf("%###d i: %##########d | f: %##########.3f | x: 0x%########x\n", i, num.integer, num.real, num.integer);
-	}
+		}
 		cmd += 2;
 		break;
 	case VMC_PRINTSTACKSIZE:
@@ -484,9 +488,15 @@ struct token_t {
 	int line;
 };
 
+enum OTOKEN_TYPE {
+	OTT_COMMAND,
+	OTT_NUMBER,
+	OTT_IDENTIFIER,
+};
+
 struct token_size_t {
 	int value;
-	int size;
+	OTOKEN_TYPE type;
 	int extra_info;
 };
 
@@ -497,6 +507,7 @@ struct subroutine_data_t {
 	int tok_begin;
 	int tok_end;
 	int num_args;
+	bool defined;
 };
 
 // How does this work?
@@ -632,6 +643,11 @@ bool Tokenize(char* data) {
 	return true;
 }
 
+struct func_call_t {
+	std::string name;
+	std::vector<token_t> values;
+};
+
 bool _cdecl TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, const std::string& function_name, int* argc) {
 	assert(nullptr != idx);
 	assert(nullptr != codesz);
@@ -653,6 +669,8 @@ bool _cdecl TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, 
 		case TT_KEYWORD: {
 			if (next_keyword & tok.keyword_id) {
 				switch (tok.keyword_id) {
+				
+				// Declaring integer and float
 				case KW_FLOAT:
 				case KW_INT:
 					if (i + 1 < size && tokens[i + 1].token_type == TT_IDENTIFIER) {
@@ -662,6 +680,15 @@ bool _cdecl TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, 
 						symbol_map[local_name].value = args;
 						args++;
 						i += 2;
+						while (i + 1 < size && tokens[i].token_type == TT_COMMA && tokens[i + 1].token_type == TT_IDENTIFIER) { // In case you want to do -> int a, b
+							std::string local_name = tokens[i + 1].val + "@" + function_name;
+							symbol_map[local_name].type = ST_LOCAL;
+							symbol_map[local_name].type_desc = tokens[i + 1].keyword_id;
+							symbol_map[local_name].value = args;
+							args++;
+							i += 2;
+						}
+
 						next_type = TT_KEYWORD | TT_IDENTIFIER; 
 						next_keyword = KW_FLOAT | KW_INT;
 					}
@@ -674,51 +701,157 @@ bool _cdecl TranformBlockData(size_t* idx, size_t* codesz, size_t* offset_file, 
 
 		}
 			break;
-		case TT_IDENTIFIER:
-			if (commands.find(tok.val) != commands.end()) { // Your usual command
-				int cmd_val = commands[tok.val].cmd;
-				printf("Found %s (0x%x)\n", tok.val.c_str(), cmd_val);
-				out_tokens.push_back({ cmd_val, 2, 0 });
-				offset_f += 2;
-				if (cmd_val == VMC_CALL) {
-					next_global = true;
+		case TT_IDENTIFIER: {
+			if (i + 1 < size && tokens[i + 1].token_type == TT_PARENTHESIS_OPEN) { // Is a call
+				bool is_stack_call = false;
+				bool is_proc = false;
+				bool is_stack_command = false;
+				int num_args = 0;
+				int cmd_val = 0;
+				if (commands.find(tok.val) != commands.end()) { // Your usual command
+					cmd_val = commands[tok.val].cmd;
+					if (cmd_val >= VMC_SETPOS && cmd_val < VMC_PRINTSTACK) {
+						is_stack_call = true;
+						is_stack_command = true;
+					}
+					printf("Found %s (0x%x)\n", tok.val.c_str(), cmd_val);
+					if (!is_stack_command) {
+						out_tokens.push_back({ cmd_val, OTT_COMMAND, 0 });
+						offset_f += 2;
+						code_size++;
+					}
+
 				}
-			}
-			else {
-				std::string ident = "";
-				if (next_global) {
-					// Maybe is call
-					ident = tok.val;
-					next_global = false;
+				else if (functions.find(tok.val) != functions.end()) { // Is a procedure call
+					printf("Found procedure call %s\n", tok.val.c_str());
+					is_stack_call = true;
+					is_proc = true;
 				}
 				else {
-					ident = tok.val + "@" + function_name;
+					char buf[512] = "";
+					sprintf(buf, "Can't find symbol \"%s\"\n", tok.val.c_str());
+					ERROR_EXIT(buf);
 				}
-				printf("Found identifier %s\n", tok.val.c_str());
-				symbol_map[ident].references.push_back(offset_f);
-				out_tokens.push_back({ 0, 4, 0 });
-				offset_f += 4;
+				i+= 2;
+				while (i < size) {
+					TK_TYPE tt = tokens[i].token_type;
+					if(tt == TT_PARENTHESIS_CLOSE) goto on_end_func_call;
+					switch (tt) {
+					case TT_INT: {
+						int val = std::stol(tokens[i].val);
+						printf("Int value %d\n", val);
+						if (is_stack_call) {
+							out_tokens.push_back({ VMC_PUSHC, OTT_COMMAND, 0 });
+							code_size++;
+							offset_f += 2;
+						}
+						if (is_proc) {
+							num_args++;
+						}
+
+						out_tokens.push_back({ val, OTT_NUMBER, 0 });
+						i++;
+						code_size++;
+						offset_f += 4;
+					}
+							   break;
+					case TT_FLOAT: {
+						number_t val;
+						val.real = (float)std::stod(tokens[i].val);
+						printf("Float value %f\n", val.real);
+						if (is_stack_call) {
+							out_tokens.push_back({ VMC_PUSHC, OTT_COMMAND, 0 });
+							code_size++;
+							offset_f += 2;
+						}
+						if (is_proc) {
+							num_args++;
+						}
+
+						out_tokens.push_back({ val.integer, OTT_NUMBER, 0 });
+						i++;
+						code_size++;
+						offset_f += 4;
+					}
+								 break;
+					case TT_IDENTIFIER:
+					{
+						std::string identifier = tokens[i].val + "@" + function_name;
+						bool found_identifier = true;
+						if (symbol_map.find(identifier) == symbol_map.end()) { // Look at global scope
+							identifier = tokens[i].val;
+							if (symbol_map.find(identifier) == symbol_map.end()) { // Else at local
+								char buf[512] = "";
+								sprintf(buf, "Can't find symbol \"%s\"\n", identifier.c_str());
+								ERROR_EXIT(buf);
+							}
+						}
+						printf("Found identifier %s\n", identifier.c_str());
+						if (is_stack_call) {
+							switch (symbol_map[identifier].type) {
+							case ST_LOCAL:
+								out_tokens.push_back({ VMC_PUSHL, OTT_COMMAND, 0 });
+								code_size++;
+								offset_f += 2;
+								break;
+							case ST_CONSTANT:
+								out_tokens.push_back({ VMC_PUSHC, OTT_COMMAND, 0 });
+								code_size++;
+								offset_f += 2;
+								break;
+							default:
+								ERROR_EXIT("Can't put procedure or label names as parameters on procedure call\n");
+							}
+						}
+						if (is_proc) {
+							num_args++;
+						}
+						symbol_map[identifier].references.push_back(offset_f);
+						out_tokens.push_back({ 0, OTT_IDENTIFIER, 0 });
+						code_size++;
+						offset_f += 4;
+						i++;
+					}
+					break;
+					default:
+						ERROR_EXIT("Expected int, float or identifier\n");
+					}
+					if (i < size) {
+						if (tokens[i].token_type == TT_COMMA) i++;
+					}
+				}
+			on_end_func_call:
+				if (is_proc) {
+					out_tokens.push_back({ VMC_ENTER, OTT_COMMAND, 0 });
+					code_size++;
+					offset_f += 2;
+					out_tokens.push_back({ num_args, OTT_NUMBER, 0 });
+					code_size++;
+					offset_f += 4;
+					out_tokens.push_back({ VMC_CALL, OTT_COMMAND, 0 });
+					code_size++;
+					offset_f += 2;
+					symbol_map[tok.val].references.push_back(offset_f);
+					out_tokens.push_back({ 0, OTT_IDENTIFIER, 0 });
+					code_size++;
+					offset_f += 4;
+					out_tokens.push_back({ VMC_LEAVE, OTT_COMMAND, 0 });
+					code_size++;
+					offset_f += 2;
+				} else if (is_stack_command) {
+					out_tokens.push_back({ cmd_val, OTT_COMMAND, 0 });
+					offset_f += 2;
+					code_size++;
+				}
+
+				i++;
 			}
-			i++;
-			code_size++;
+			else {
+				ERROR_EXIT("Missing parenthesis (Assign is not implemented)\n");
+
+			}
 			break;
-		case TT_INT: {
-			int val = std::stol(tok.val);
-			printf("Int value %d\n", val);
-			out_tokens.push_back({ val, 4, 0 });
-			i++;
-			code_size++;
-			offset_f += 4;
-		} break;
-		case TT_FLOAT: {
-			number_t val;
-			val.real = std::stod(tok.val);
-			printf("Float value %f\n", val.real);
-			out_tokens.push_back({ val.integer, 4, 0 });
-			i++;
-			code_size++;
-			offset_f += 4;
-		} break;
+		}
 		case TT_BRACKET_CLOSE:
 			*idx = i; // Tokenized index
 			*codesz += code_size; // Position in tokens
@@ -745,6 +878,8 @@ bool Transform() {
 	size_t offset_begin = 0;
 	int enter_size = 0;
 	int num_args = 0;
+	bool know_args = false;
+	int expected_args = 0;
 	for (size_t i = 0; i < size; ) {
 		if (!(next_token & tokens[i].token_type)) {
 			ERROR_EXIT("This token was not expected at this time\n");
@@ -764,13 +899,20 @@ bool Transform() {
 					func_name = tokens[i + 1].val;
 					// Check if is not repeating function name
 					if (functions.find(func_name) != functions.end()) {
-						ERROR_EXIT("Can't repeat a function name");
+						if (functions[func_name].defined) {
+							ERROR_EXIT("Can't redefine a function");
+						}
+						else {
+							know_args = true;
+							expected_args = functions[func_name].num_args;
+						}
 					};
 					// Then add reference
 					symbol_map[func_name].type = ST_FUNCTION;
 					symbol_map[func_name].value = out_file_size;
 					i += 2;
-					next_token = TT_PARENTHESIS_OPEN | TT_BRACKET_OPEN;
+					next_token = TT_PARENTHESIS_OPEN | TT_BRACKET_OPEN | TT_KEYWORD;
+					next_keyword = KW_PROCEDURE;
 				}
 				break;
 			case KW_INT:
@@ -805,10 +947,10 @@ bool Transform() {
 			// Add if there are any variables declared
 			out_file_size += 2 + 4;
 			if (false == TranformBlockData(&i, &subr.size, &out_file_size, func_name, &enter_size)) return false;
-			out_tokens.insert(out_tokens.begin() + subr.tok_begin, { enter_size - num_args, 4, 0 });
-			out_tokens.insert(out_tokens.begin() + subr.tok_begin, { VMC_LALLOC, 2, 0 });
+			out_tokens.insert(out_tokens.begin() + subr.tok_begin, { enter_size - num_args, OTT_NUMBER, 0 });
+			out_tokens.insert(out_tokens.begin() + subr.tok_begin, { VMC_LALLOC, OTT_COMMAND, 0 });
 			tok_pos += subr.size + 1 + 2;
-			out_tokens.push_back({VMC_RETURN, 2, 0});
+			out_tokens.push_back({VMC_RETURN, OTT_COMMAND, 0});
 			out_file_size += 2;
 
 			subr.tok_end = tok_pos;
@@ -825,8 +967,11 @@ bool Transform() {
 			on_function = false;
 			enter_size = 0;
 			i++;
-			functions.insert({std::move(func_name), std::move(subr)});
+			subr.defined = true;
+			functions[func_name] = std::move(subr);
+			func_name = "";
 			memset(&subr, 0, sizeof(subroutine_data_t));
+			subr.defined = false;
 			break;
 		case TT_PARENTHESIS_OPEN:
 			next_token = TT_KEYWORD | TT_PARENTHESIS_CLOSE;
@@ -835,8 +980,23 @@ bool Transform() {
 			i++;
 			break;
 		case TT_PARENTHESIS_CLOSE:
-			next_token = TT_BRACKET_OPEN;
+			next_token = TT_BRACKET_OPEN | TT_KEYWORD;
+			next_keyword = KW_PROCEDURE;
 			on_parameter_declare = false;
+			if (i + i < size && tokens[i + 1].token_type == TT_KEYWORD && tokens[i + 1].keyword_id == KW_PROCEDURE) {
+				subr.num_args = num_args;
+				functions[func_name] = std::move(subr);
+				func_name = "";
+				on_function = false;
+				num_args = 0;
+				enter_size = 0;
+			}
+
+			if (know_args && !(num_args == expected_args)) {
+				char buf[512] = "";
+				sprintf(buf, "The amount of arguments for \"%s\" is not the same as declaration (given %d, expected %d)", func_name.c_str(), num_args, expected_args);
+				ERROR_EXIT(buf);
+			}
 			i++;
 			break;
 		case TT_COMMA:
@@ -867,13 +1027,18 @@ void Token2Data() {
 		size_t end = t.second.tok_end;
 		offset = data + t.second.offset_begin;
 		for (int i = begin; i < end; i++) {
-			switch (out_tokens[i].size) {
-			case 2:
+			switch (out_tokens[i].type) {
+			case OTT_COMMAND:
 				*((int16_t*)offset) = (int16_t)out_tokens[i].value;
 				printf("\n\t%d  ", *(int16_t*)offset);
 				offset += sizeof(int16_t);
 				break;
-			case 4:
+			case OTT_IDENTIFIER:
+				*((int*)offset) = 0;
+				printf("id, ");
+				offset += sizeof(int);
+				break;
+			case OTT_NUMBER:
 				*((int*)offset) = out_tokens[i].value;
 				printf("%d, ", *(int*)offset);
 				offset += sizeof(int);
