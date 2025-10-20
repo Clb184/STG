@@ -24,7 +24,7 @@ enum TK_TYPE {
 
 enum KEYWORDS {
 	KW_OTHER = 1 << 1,
-	KW_FUNCTION = 1 << 2,
+	KW_PROCEDURE = 1 << 2,
 	KW_INT = 1 << 3,
 	KW_FLOAT = 1 << 4,
 	KW_TIMES = 1 << 5,
@@ -78,9 +78,16 @@ enum VM_COMMAND {
 	VMC_NEGF, // -r
 	VMC_I2F, // ftoi(r) 
 
+	// Game itself commands
 	VMC_SETPOS,
 	VMC_MOVEPOS,
 	VMC_MOVEDIR,
+
+	// Debug commands
+	VMC_PRINTSTACK,
+	VMC_PRINTSTACKSIZE,
+	VMC_PRINTLOCALS,
+	VMC_PRINTLOCALSSIZE,
 };
 
 union number_t {
@@ -109,51 +116,55 @@ struct command_struct_t {
 };
 
 struct std::map<const std::string, command_struct_t> commands = {
-	{"Nop",      {VMC_NOP, 0}},
-	{"Nop2",     {VMC_NOP2, 1}},
+	{"nop",      {VMC_NOP, 0}},
+	{"nop2",     {VMC_NOP2, 1}},
 
-	{"Call",      {VMC_CALL, 1}},
-	{"Return",    {VMC_RETURN, 0}},
-	{"Kill",      {VMC_KILL, 0}},
+	{"call",      {VMC_CALL, 1}},
+	{"return",    {VMC_RETURN, 0}},
+	{"kill",      {VMC_KILL, 0}},
 
-	{"LAlloc",     {VMC_LALLOC, 1}},
-	{"Enter",		{VMC_ENTER, 1}},
-	{"Leave",		{VMC_LEAVE, }},
+	{"lalloc",     {VMC_LALLOC, 1}},
+	{"enter",		{VMC_ENTER, 1}},
+	{"leave",		{VMC_LEAVE, 0}},
 
-	{"PushC",     {VMC_PUSHC, 1}},
-	{"StackClear",  {VMC_STACKCLEAR, 1}},
+	{"pushc",     {VMC_PUSHC, 1}},
 
-	{"PushR",     {VMC_PUSHR, 1}},
-	{"PushL",     {VMC_PUSHL, 1}},
-	{"PushG",     {VMC_PUSHG, 1}},
+	{"pushr",     {VMC_PUSHR, 1}},
+	{"pushl",     {VMC_PUSHL, 1}},
+	{"pushg",     {VMC_PUSHG, 1}},
 
-	{"PopR",      {VMC_POPR, 1}},
-	{"PopL",      {VMC_POPL, 1}},
-	{"PopG",      {VMC_POPG, 1}},
+	{"popr",      {VMC_POPR, 1}},
+	{"popl",      {VMC_POPL, 1}},
+	{"popg",      {VMC_POPG, 1}},
 
-	{"SetR",      {VMC_SETR, 2}},
-	{"SetL",      {VMC_SETL, 2}},
-	{"SetG",      {VMC_SETG, 2}},
+	{"setr",      {VMC_SETR, 2}},
+	{"setl",      {VMC_SETL, 2}},
+	{"setg",      {VMC_SETG, 2}},
 
-	{"AddI",      {VMC_ADDI, 0}},
-	{"SubI",      {VMC_SUBI, 0}},
-	{"MulI",      {VMC_MULI, 0}},
-	{"DivI",      {VMC_DIVI, 0}},
-	{"ModI",      {VMC_MODI, 0}},
-	{"NegI",      {VMC_NEGI, 0}},
-	{"F2I",       {VMC_F2I, 0}},
+	{"addi",      {VMC_ADDI, 0}},
+	{"subi",      {VMC_SUBI, 0}},
+	{"muli",      {VMC_MULI, 0}},
+	{"divi",      {VMC_DIVI, 0}},
+	{"modi",      {VMC_MODI, 0}},
+	{"negi",      {VMC_NEGI, 0}},
+	{"f2i",       {VMC_F2I, 0}},
 
-	{"AddF",      {VMC_ADDF, 0}},
-	{"SubF",      {VMC_SUBF, 0}},
-	{"MulF",      {VMC_MULF, 0}},
-	{"DivF",      {VMC_DIVF, 0}},
-	{"ModF",      {VMC_MODF, 0}},
-	{"NegF",      {VMC_NEGF, 0}},
-	{"I2F",       {VMC_I2F, 0}},
+	{"addf",      {VMC_ADDF, 0}},
+	{"subf",      {VMC_SUBF, 0}},
+	{"mulf",      {VMC_MULF, 0}},
+	{"divf",      {VMC_DIVF, 0}},
+	{"modf",      {VMC_MODF, 0}},
+	{"negf",      {VMC_NEGF, 0}},
+	{"i2f",       {VMC_I2F, 0}},
 
-	{"SetPos",    {VMC_SETPOS, 2}},
-	{"MovePos",   {VMC_MOVEPOS, 4}},
-	{"MoveDir",   {VMC_MOVEDIR, 3}},
+	{"setpos",    {VMC_SETPOS, 2}},
+	{"movepos",   {VMC_MOVEPOS, 4}},
+	{"movedir",   {VMC_MOVEDIR, 3}},
+
+	{"printstack",			{VMC_PRINTSTACK, 0}},
+	{"printstacksize",		{VMC_PRINTSTACKSIZE, 0}},
+	{"printlocals",			{VMC_PRINTLOCALS, 0}},
+	{"printlocalssize",		{VMC_PRINTLOCALSSIZE, 0}},
 };
 
 const int max_locals = 64;
@@ -385,14 +396,14 @@ cmd_begin:
 	case VMC_POPR: {
 		assert(nullptr != register_data);
 		int reg = *((int*)(cmd + 2));
-		register_data[frame_pointer + reg] = StkPop();
+		register_data[reg] = StkPop();
 		cmd += 2 + sizeof(int);
 	}
 	break;
 	case VMC_POPG: {
 		assert(nullptr != global_data);
 		int reg = *((int*)(cmd + 2));
-		global_data[frame_pointer + reg] = StkPop();
+		global_data[reg] = StkPop();
 		cmd += 2 + sizeof(int);
 	}
 				 break;
@@ -427,6 +438,31 @@ cmd_begin:
 		final_y = StkPop();
 		cmd += 2;
 	}
+		break;
+
+	case VMC_PRINTSTACK:
+		printf("-------- Stack --------\n");
+		for (int i = 0; i < calc_stack.stack_pointer; i++) {
+			number_t num = calc_stack.stack[i];
+			printf("%###d i: %##########d | f: %##########.3f | x: 0x%########x\n", i, num.integer, num.real, num.integer);
+	}
+		cmd += 2;
+		break;
+	case VMC_PRINTSTACKSIZE:
+		printf("Stack size: %d\n", calc_stack.stack_pointer);
+		cmd += 2;
+		break;
+	case VMC_PRINTLOCALS:
+		printf("-------- Locals --------\n");
+		for (int i = frame_pointer; i < stack_pointer; i++) {
+			number_t num = stack[i];
+			printf("%###d i: %##########d | f: %##########.3f | x: 0x%########x\n", i, num.integer, num.real, num.integer);
+		}
+		cmd += 2;
+		break;
+	case VMC_PRINTLOCALSSIZE:
+		printf("Number of locals: %d\n", stack_pointer - frame_pointer);
+		cmd += 2;
 		break;
 	}
 	goto cmd_begin;
@@ -481,6 +517,7 @@ struct symbol_mention_t {
 	std::vector<int> references;
 };
 
+
 std::map<const std::string, symbol_mention_t> symbol_map;
 
 std::vector<token_t> tokens;
@@ -489,7 +526,7 @@ std::map<std::string, subroutine_data_t> functions;
 const char* name = "test.scpt";
 
 constexpr KEYWORDS GetType(const std::string& str) {
-	if (str == "fn") return KW_FUNCTION;
+	if (str == "proc") return KW_PROCEDURE;
 	else if (str == "int") return KW_INT;
 	else if (str == "float") return KW_FLOAT;
 	else if (str == "times") return KW_TIMES;
@@ -702,7 +739,7 @@ bool Transform() {
 	std::string func_name = "";
 	subroutine_data_t subr = { 0 };
 	int next_token = TT_KEYWORD;
-	int next_keyword = KW_FUNCTION;
+	int next_keyword = KW_PROCEDURE;
 	size_t code_size = 0;
 	size_t tok_pos = 0;
 	size_t offset_begin = 0;
@@ -718,7 +755,7 @@ bool Transform() {
 				ERROR_EXIT("This keyword was not expected at this time\n");
 			}
 			switch (tokens[i].keyword_id) {
-			case KW_FUNCTION:
+			case KW_PROCEDURE:
 				if (on_function) {
 					ERROR_EXIT("Can't declare a function inside another\n");
 				}
@@ -784,7 +821,7 @@ bool Transform() {
 			break;
 		case TT_BRACKET_CLOSE:
 			next_token = TT_KEYWORD;
-			next_keyword = KW_FUNCTION;
+			next_keyword = KW_PROCEDURE;
 			on_function = false;
 			enter_size = 0;
 			i++;

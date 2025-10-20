@@ -1,35 +1,35 @@
 
-fn main {
-	int a
-	int b
-	SetL(a, 0.0)
-	SetL(b, 100.0)
+proc main {
+	int a, b
+	setl(a, 0.0)
+	setl(b, 100.0)
 
-	PushL(a)
-	PushL(b)
-	SetPos()
+	setpos(a, b)
 
-	PushC(200.0)
-	PushC(200.0)
-	PushC(300.0)
-	AddF()
-	PushC(1)
-	PushC(80)
-	MovePos()
+	movepos(80, 1, 500.0, 200.0)
 
-	Nop()
-	PushC(30.0)
-	PushC(20)
-	PushC(10)
-	Enter(3)
-	Call(func)
-	Leave()
-	Kill()
+	nop
+	func(10, 20, 30.0)
+	printstack
+	printlocals
+	kill
 }
 
-fn func(int a, int b, float c) {
-	SetL(a, 30)
-	SetL(b, 50)
-	SetL(c, 120.0)
+proc func(int a, int b, float c) {
+	setl(a, 30)
+	setl(b, 50)
+	setl(c, 120.0)
 
+	pushl(c)
+	pushl(a)
+	i2f
+	mulf
+	subf
+	popr(1)
+
+	pushr(1)
+	f2i
+	popr(0)
+
+	printlocals
 }
